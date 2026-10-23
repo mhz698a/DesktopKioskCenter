@@ -21,7 +21,7 @@ else:
 
 DATA_FILE = BASE_DIR / "kiosks.json"
 
-DEFAULT_TOKEN = os.getenv("DESKTOPKIOSK_API_TOKEN", "MiTokenSecreto123")
+DEFAULT_TOKEN = os.getenv("DESKTOPKIOSK_API_TOKEN", "UAQinformatizacion7085")
 
 @dataclass
 class Kiosk:
