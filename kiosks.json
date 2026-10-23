@@ -1,0 +1,18 @@
+[
+  {
+    "name": "PC 1",
+    "host": "192.168.100.10",
+    "port": 7085,
+    "token": "MiTokenSecreto123",
+    "state": "offline",
+    "locked_seconds": null
+  },
+  {
+    "name": "PC 2",
+    "host": "192.168.100.5",
+    "port": 7085,
+    "token": "MiTokenSecreto123",
+    "state": "offline",
+    "locked_seconds": null
+  }
+]
