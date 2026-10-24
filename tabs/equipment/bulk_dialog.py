@@ -1,18 +1,16 @@
 from PyQt6.QtWidgets import (
-    QDialog,
     QDialogButtonBox,
     QFormLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QMessageBox,
     QSpinBox,
     QVBoxLayout,
     QWidget,
 )
+from css.cQDialogs import cQMsgBox, cQDlg
 
-
-class BulkEquipmentDialog(QDialog):
+class BulkEquipmentDialog(cQDlg):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Agregar varios equipos")
@@ -81,7 +79,7 @@ class BulkEquipmentDialog(QDialog):
     def accept(self):
         values = self.get_values()
         if values["start"] > values["end"]:
-            QMessageBox.warning(
+            cQMsgBox.warning(
                 self,
                 "Rango inválido",
                 "El valor inicial no puede ser mayor que el valor final.",
@@ -89,13 +87,13 @@ class BulkEquipmentDialog(QDialog):
             self.start_spin.setFocus()
             return
         if not values["name_base"]:
-            QMessageBox.warning(
+            cQMsgBox.warning(
                 self, "Validación", "El nombre base es obligatorio."
             )
             self.name_base_input.setFocus()
             return
         if not values["ip_base"]:
-            QMessageBox.warning(self, "Validación", "La IP Base es obligatoria.")
+            cQMsgBox.warning(self, "Validación", "La IP Base es obligatoria.")
             self.ip_base_input.setFocus()
             return
         super().accept()

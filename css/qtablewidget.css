@@ -46,3 +46,63 @@ QTableCornerButton::section {
     background-color: #2a3145;
     border: none;
 }
+
+
+/* =========================================
+   Estilo de las barras de desplazamiento (Scrollbars)
+   ========================================= */
+
+QScrollBar:vertical {
+    background: #1f1f1f;
+    width: 14px;
+    margin: 0px;
+    border-radius: 6px;
+}
+
+QScrollBar::handle:vertical {
+    background: #64748b; /* Tono gris-azulado más claro y visible */
+    min-height: 25px;
+    border-radius: 6px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background: #94a3b8; /* Aún más claro al pasar el mouse */
+}
+
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    background: none;
+    border: none;
+    height: 0px;
+}
+
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+    background: none;
+}
+
+/* Scrollbar horizontal */
+QScrollBar:horizontal {
+    background: #1f1f1f;
+    height: 14px;
+    margin: 0px;
+    border-radius: 6px;
+}
+
+QScrollBar::handle:horizontal {
+    background: #64748b;
+    min-width: 25px;
+    border-radius: 6px;
+}
+
+QScrollBar::handle:horizontal:hover {
+    background: #94a3b8;
+}
+
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    background: none;
+    border: none;
+    width: 0px;
+}
+
+QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
+    background: none;
+}

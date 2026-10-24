@@ -1,14 +1,12 @@
 from PyQt6.QtWidgets import (
-    QDialog,
     QDialogButtonBox,
     QFormLayout,
     QLineEdit,
-    QMessageBox,
     QVBoxLayout,
 )
+from css.cQDialogs import cQMsgBox, cQDlg
 
-
-class UserRecordDialog(QDialog):
+class UserRecordDialog(cQDlg):
     def __init__(self, title, fields, parent=None):
         super().__init__(parent)
         self.setWindowTitle(title)
@@ -43,7 +41,7 @@ class UserRecordDialog(QDialog):
     def accept(self):
         for key, label in self.fields:
             if not self.inputs[key].text().strip():
-                QMessageBox.warning(
+                cQMsgBox.warning(
                     self,
                     "Validación",
                     f"El campo «{label}» es obligatorio.",

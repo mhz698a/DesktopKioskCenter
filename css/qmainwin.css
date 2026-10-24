@@ -1,0 +1,197 @@
+QWidget#RootMain {
+    background-color: #252525;
+}
+QWidget#applicationHeader {
+    background-color: #17324d;
+    border-radius: 8px;
+}
+QLabel#applicationTitle {
+    color: white;
+    font-size: 23px;
+    font-weight: 700;
+    background-color: transparent;
+}
+QLabel#clockLabel {
+    color: white;
+    font-size: 21px;
+    font-weight: 700;
+}
+QLabel#dateLabel, QLabel#serverIpLabel {
+    color: #d9e5f0;
+    font-size: 11px;
+}
+QSplitter::handle { background-color: transparent; }
+QDialog { background-color: #252525; }
+
+/* ==========================================================================
+   QLineEdit (Campos de texto)
+   ========================================================================== */
+QLineEdit {
+    background-color: #565656;
+    border: 1px solid #E0E0E0;
+    border-radius: 4px;
+    padding: 6px 10px;
+    color: #f4f4f4;
+    font-family: "Segoe UI", sans-serif;
+    font-size: 13px;
+    selection-background-color: #31a0f5; /* Color al seleccionar texto */
+    selection-color: #FFFFFF;
+}
+
+/* Estado cuando el campo recibe el foco (clic para escribir) */
+QLineEdit:focus {
+    border: 1px solid #37a8ff; /* Cambia al color de acento */
+    background-color: #264e63;
+}
+
+/* Estado cuando el campo está deshabilitado */
+QLineEdit:disabled {
+    background-color: #212121;
+    color: #909090;
+    border: 1px solid #EAEAEA;
+}
+
+/* ==========================================================================
+   QPushButton (Botones)
+   ========================================================================== */
+QPushButton {
+    background-color: #333333;
+    border: 1px solid #D0D0D0;
+    border-radius: 4px;
+    padding: 6px 16px;
+    color: #dfdfdf;
+    font-family: "Segoe UI", sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+/* Estado Hover (Pasar el mouse por encima) */
+QPushButton:hover {
+    background-color: #4b4b4b;
+    border-color: #A6A6A6;
+    color: #ffffff;
+}
+
+/* Estado Pressed (Al hacer clic) */
+QPushButton:pressed {
+    background-color: #6e6e6e;
+    border-color: #888888;
+}
+
+/* Estado por defecto o enfocado (Default Button / Focus) */
+QPushButton:focus {
+    border: 1px solid #0078D4;
+}
+
+/* Estado cuando el botón está deshabilitado */
+QPushButton:disabled {
+    background-color: #212121;
+    color: #CCCCCC;
+    border: 1px solid #434343;
+}
+
+
+/* ==========================================================================
+   QLabel (Etiquetas de texto)
+   ========================================================================== */
+QLabel {
+    color: #d6d6d6;
+    font-family: "Segoe UI", sans-serif;
+    font-size: 13px;
+    background-color: transparent; /* Evita fondos grises residuales */
+}
+
+/* Opcional: Subclase para títulos limpios si la necesitas */
+QLabel#TitleLabel {
+    color: #dbdbdb;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+
+
+/* ==========================================================================
+   QSpinBox
+   ========================================================================== */
+
+/* Contenedor principal del QSpinBox */
+QSpinBox {
+    background-color: #333333;
+    border: 1px solid #E0E0E0;
+    border-radius: 4px;
+    padding: 5px 30px 5px 10px; /* Deja espacio a la derecha para los botones */
+    color: #ffffff;
+    font-family: "Segoe UI", sans-serif;
+    font-size: 13px;
+}
+
+/* Estado cuando el control recibe el foco */
+QSpinBox:focus {
+    border: 1px solid #1f9eff; /* Borde azul de acento */
+}
+
+/* Configuración del contenedor de los botones de arriba/abajo */
+QSpinBox::up-button, QSpinBox::down-button {
+    background-color: transparent;
+    border: none;
+    width: 20px;
+    height: 14px;
+}
+
+/* Posicionamiento del botón de arriba */
+QSpinBox::up-button {
+    subcontrol-origin: border;
+    subcontrol-position: top right;
+    right: 4px;
+    top: 2px;
+}
+
+/* Posicionamiento del botón de abajo */
+QSpinBox::down-button {
+    subcontrol-origin: border;
+    subcontrol-position: bottom right;
+    right: 4px;
+    bottom: 2px;
+}
+
+/* Estilo para las flechas con SVG plano y contraste en blanco */
+QSpinBox::up-arrow {
+    image: url("css/up_arrow.svg");
+    width: 10px;  
+    height: 10px;
+    color: #fff;
+}
+
+/* Cambio de color de la flecha a azul brillante al pasar el mouse */
+QSpinBox::up-arrow:hover {
+    image: url("css/up_arrow.svg");
+}
+
+QSpinBox::down-arrow {
+    image: url("css/down_arrow.svg");
+    width: 10px;  
+    height: 10px; 
+    color: #fff;
+}
+
+/* Cambio de color de la flecha a azul brillante al pasar el mouse */
+QSpinBox::down-arrow:hover {
+    image: url("css/down_arrow.svg");
+}
+
+/* Estados de interacción para los botones pequeños */
+QSpinBox::up-button:hover, QSpinBox::down-button:hover {
+    background-color: #6b6b6b;
+    border-radius: 2px;
+}
+
+QSpinBox::up-button:pressed, QSpinBox::down-button:pressed {
+    background-color: #575757;
+}
+
+/* Estado cuando el control está deshabilitado */
+QSpinBox:disabled {
+    background-color: #212121;
+    color: #999999;
+    border: 1px solid #EAEAEA;
+}

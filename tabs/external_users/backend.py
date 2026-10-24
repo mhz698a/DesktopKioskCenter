@@ -1,10 +1,10 @@
-from PyQt6.QtWidgets import QDialog, QMessageBox
+from PyQt6.QtWidgets import QDialog
 from PyQt6.QtCore import QObject
 
 from const import BASE_DIR
 from record_storage import load_records, save_records
 from user_record_dialog import UserRecordDialog
-
+from css.cQDialogs import cQMsgBox
 
 RECORD_FILE = BASE_DIR / "external_users.json"
 FIELDS = [
@@ -31,7 +31,7 @@ class ExternalUsersBackend(QObject):
         try:
             save_records(RECORD_FILE, updated)
         except OSError as exc:
-            QMessageBox.critical(
+            cQMsgBox.critical(
                 self.view, "Error al guardar", f"No se pudo guardar el usuario externo.\n\n{exc}"
             )
             return

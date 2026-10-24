@@ -1,5 +1,7 @@
 import ipaddress
 import socket
+import platform
+import pywinstyles
 
 from PyQt6.QtCore import QDate, QTime, QTimer, QThreadPool, Qt
 from PyQt6.QtWidgets import (
@@ -26,11 +28,14 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("DesktopKioskCenter")
         self.resize(1250, 720)
         self._closing = False
-
+        if platform.system() == "Windows":
+            pywinstyles.apply_style(self, "dark")
+        
         self.threadpool = QThreadPool(self)
         self.threadpool.setMaxThreadCount(8)
         
         root = QWidget(self)
+        root.setObjectName("RootMain")
         root_layout = QVBoxLayout(root)
         root_layout.setContentsMargins(12, 10, 12, 12)
         root_layout.setSpacing(10)
@@ -90,26 +95,7 @@ class MainWindow(QMainWindow):
         root_layout.addWidget(self.tabs, 1)
         self.setCentralWidget(root)
 
-        self.setStyleSheet("""
-            QWidget#applicationHeader {
-                background-color: #17324d;
-                border-radius: 8px;
-            }
-            QLabel#applicationTitle {
-                color: white;
-                font-size: 23px;
-                font-weight: 700;
-            }
-            QLabel#clockLabel {
-                color: white;
-                font-size: 21px;
-                font-weight: 700;
-            }
-            QLabel#dateLabel, QLabel#serverIpLabel {
-                color: #d9e5f0;
-                font-size: 11px;
-            }
-        """)
+        self.setStyleSheet(apply_css_sheet("css/qmainwin.css"))
 
         self.clock_timer = QTimer(self)
         self.clock_timer.timeout.connect(self.update_header_clock)

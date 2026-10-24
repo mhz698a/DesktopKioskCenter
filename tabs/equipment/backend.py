@@ -9,7 +9,7 @@ from const import DEFAULT_TOKEN, Kiosk
 from pollstatus import PollWorker
 from tabs.equipment.bulk_dialog import BulkEquipmentDialog
 from utils import load_kiosks, save_kiosks
-
+from css.cQDialogs import cQMsgBox
 
 class EquipmentBackend(QObject):
     def __init__(self, view, threadpool, parent=None):
@@ -108,7 +108,7 @@ class EquipmentBackend(QObject):
             save_kiosks(self.kiosks)
         except OSError as exc:
             self.kiosks.pop()
-            QMessageBox.critical(
+            cQMsgBox.critical(
                 self.view, "Error al guardar", f"No se pudo guardar el equipo.\n\n{exc}"
             )
             return
@@ -157,7 +157,7 @@ class EquipmentBackend(QObject):
                 for number in range(start, end + 1)
             ]
         except ValueError as exc:
-            QMessageBox.warning(self.view, "IP Base inválida", str(exc))
+            cQMsgBox.warning(self.view, "IP Base inválida", str(exc))
             return
 
         existing_names = {kiosk.name.strip().casefold() for kiosk in self.kiosks}
@@ -166,24 +166,24 @@ class EquipmentBackend(QObject):
         new_hosts = [kiosk.host for kiosk in new_kiosks]
 
         if len(set(new_names)) != len(new_names):
-            QMessageBox.warning(
+            cQMsgBox.warning(
                 self.view, "Rango duplicado", "El rango genera nombres repetidos."
             )
             return
         if len(set(new_hosts)) != len(new_hosts):
-            QMessageBox.warning(
+            cQMsgBox.warning(
                 self.view, "Rango duplicado", "El rango genera direcciones IP repetidas."
             )
             return
         if any(name in existing_names for name in new_names):
-            QMessageBox.warning(
+            cQMsgBox.warning(
                 self.view,
                 "Equipo duplicado",
                 "Uno o más nombres ya existen. No se agregó ningún equipo.",
             )
             return
         if any(host in existing_hosts for host in new_hosts):
-            QMessageBox.warning(
+            cQMsgBox.warning(
                 self.view,
                 "IP duplicada",
                 "Una o más direcciones IP ya existen. No se agregó ningún equipo.",
@@ -196,7 +196,7 @@ class EquipmentBackend(QObject):
             save_kiosks(self.kiosks)
         except OSError as exc:
             del self.kiosks[old_length:]
-            QMessageBox.critical(
+            cQMsgBox.critical(
                 self.view,
                 "Error al guardar",
                 f"No se pudieron guardar los equipos.\n\n{exc}",
@@ -211,11 +211,11 @@ class EquipmentBackend(QObject):
 
         name, host = self.view.get_editor_values()
         if not name:
-            QMessageBox.warning(self.view, "Validación", "El nombre es obligatorio.")
+            cQMsgBox.warning(self.view, "Validación", "El nombre es obligatorio.")
             self.view.name_input.setFocus()
             return
         if not host:
-            QMessageBox.warning(self.view, "Validación", "La IP o host es obligatorio.")
+            cQMsgBox.warning(self.view, "Validación", "La IP o host es obligatorio.")
             self.view.host_input.setFocus()
             return
 
@@ -233,7 +233,7 @@ class EquipmentBackend(QObject):
             save_kiosks(self.kiosks)
         except OSError as exc:
             self.kiosks[index] = original
-            QMessageBox.critical(
+            cQMsgBox.critical(
                 self.view,
                 "Error al guardar",
                 f"No se pudieron guardar los cambios.\n\n{exc}",
@@ -246,7 +246,7 @@ class EquipmentBackend(QObject):
         if index is None or not 0 <= index < len(self.kiosks):
             return
         kiosk = self.kiosks[index]
-        answer = QMessageBox.question(
+        answer = cQMsgBox.question(
             self.view,
             "Eliminar equipo",
             f"¿Eliminar «{kiosk.name}» de la lista?",
@@ -261,7 +261,7 @@ class EquipmentBackend(QObject):
             save_kiosks(self.kiosks)
         except OSError as exc:
             self.kiosks.insert(index, removed)
-            QMessageBox.critical(
+            cQMsgBox.critical(
                 self.view,
                 "Error al guardar",
                 f"No se pudo eliminar el equipo.\n\n{exc}",
@@ -287,7 +287,7 @@ class EquipmentBackend(QObject):
 
     def on_action_error(self, title, message):
         if not self._closing:
-            QMessageBox.critical(self.view, title, message)
+            cQMsgBox.critical(self.view, title, message)
 
     def poll_status(self):
         if self._closing:

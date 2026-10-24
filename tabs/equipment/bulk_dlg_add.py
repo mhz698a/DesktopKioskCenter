@@ -1,16 +1,15 @@
 from PyQt6.QtWidgets import (
-    QDialog,
     QDialogButtonBox,
     QFormLayout,
     QLineEdit,
-    QMessageBox,
     QVBoxLayout,
 )
 
+from css.cQDialogs import cQMsgBox, cQDlg
 from const import DEFAULT_TOKEN, Kiosk
 
 
-class KioskDialog(QDialog):
+class KioskDialog(cQDlg):
     def __init__(self, parent=None, kiosk: Kiosk | None = None):
         super().__init__(parent)
         self.setWindowTitle("Agregar equipo" if kiosk is None else "Editar equipo")
@@ -50,11 +49,11 @@ class KioskDialog(QDialog):
 
     def accept(self):
         if not self.name.text().strip():
-            QMessageBox.warning(self, "Validación", "El nombre es obligatorio.")
+            cQMsgBox.warning(self, "Validación", "El nombre es obligatorio.")
             self.name.setFocus()
             return
         if not self.host.text().strip():
-            QMessageBox.warning(self, "Validación", "La IP o host es obligatorio.")
+            cQMsgBox.warning(self, "Validación", "La IP o host es obligatorio.")
             self.host.setFocus()
             return
         super().accept()
