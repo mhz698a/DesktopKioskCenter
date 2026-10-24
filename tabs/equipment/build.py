@@ -37,9 +37,9 @@ class EquipmentTab(QWidget):
         toolbar.setMovable(False)
 
         add_action = toolbar.addAction("Agregar Equipo")
-        add_action.triggered.connect(self.add_single_requested.emit)
+        add_action.triggered.connect(lambda _checked=False: self.add_single_requested.emit())
         add_multiple_action = toolbar.addAction("Agregar varios equipos")
-        add_multiple_action.triggered.connect(self.add_multiple_requested.emit)
+        add_multiple_action.triggered.connect(lambda _checked=False: self.add_multiple_requested.emit())
 
         splitter = QSplitter(Qt.Orientation.Horizontal, self)
         self.table = QTableWidget(0, 4, splitter)
@@ -93,11 +93,11 @@ class EquipmentTab(QWidget):
         editor_layout.addLayout(edit_row)
         editor_layout.addStretch(1)
 
-        self.lock_button.clicked.connect(self.lock_requested.emit)
-        self.unlock_button.clicked.connect(self.unlock_requested.emit)
-        self.delete_button.clicked.connect(self.delete_requested.emit)
-        self.save_button.clicked.connect(self.save_requested.emit)
-        self.revert_button.clicked.connect(self.revert_requested.emit)
+        self.lock_button.clicked.connect(lambda _checked=False: self.lock_requested.emit())
+        self.unlock_button.clicked.connect(lambda _checked=False: self.unlock_requested.emit())
+        self.delete_button.clicked.connect(lambda _checked=False: self.delete_requested.emit())
+        self.save_button.clicked.connect(lambda _checked=False: self.save_requested.emit())
+        self.revert_button.clicked.connect(lambda _checked=False: self.revert_requested.emit())
 
         splitter.addWidget(self.table)
         splitter.addWidget(self.editor_panel)
