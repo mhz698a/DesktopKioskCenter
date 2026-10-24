@@ -19,7 +19,7 @@ class InternalStudentsTab(QWidget):
         toolbar = QToolBar("Alumnos Internos Registrados", self)
         toolbar.setMovable(False)
         add_action = toolbar.addAction("Agregar Alumno")
-        add_action.triggered.connect(self.add_requested.emit)
+        add_action.triggered.connect(lambda _checked=False: self.add_requested.emit())
 
         self.table = QTableWidget(0, 5, self)
         self.table.setHorizontalHeaderLabels(
