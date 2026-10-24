@@ -389,6 +389,8 @@ class MainWindow(QMainWindow):
             kiosk.state = new_state
             kiosk.locked_seconds = new_seconds
             self.update_row(index)
+            if self.selected_kiosk_index == index:
+                self.edit_state.setText(self.state_label(kiosk.state))
 
     def update_row(self, index: int):
         kiosk = self.kiosks[index]
