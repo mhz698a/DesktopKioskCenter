@@ -19,7 +19,7 @@ class ExternalUsersTab(QWidget):
         toolbar = QToolBar("Usuarios Externos Registrados", self)
         toolbar.setMovable(False)
         add_action = toolbar.addAction("Agregar Usuario")
-        add_action.triggered.connect(self.add_requested.emit)
+        add_action.triggered.connect(lambda _checked=False: self.add_requested.emit())
 
         self.table = QTableWidget(0, 5, self)
         self.table.setHorizontalHeaderLabels(
