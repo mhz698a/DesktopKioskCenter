@@ -18,6 +18,7 @@ class KioskDialog(QDialog):
         self.host = QLineEdit(self)
         self.port = QLineEdit("7085", self)
         self.port.setReadOnly(True)
+        self.setMinimumWidth(430)
 
         if kiosk is not None:
             self.name.setText(kiosk.name)

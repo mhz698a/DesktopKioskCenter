@@ -4,7 +4,7 @@ from PyQt6.QtCore import QObject, QTimer
 from PyQt6.QtWidgets import QDialog, QMessageBox
 
 from action_req import ActionWorker
-from add_pc_dlg import KioskDialog
+from tabs.equipment.bulk_dlg_add import KioskDialog
 from const import DEFAULT_TOKEN, Kiosk
 from pollstatus import PollWorker
 from tabs.equipment.bulk_dialog import BulkEquipmentDialog

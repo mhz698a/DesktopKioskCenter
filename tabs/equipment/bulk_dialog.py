@@ -17,6 +17,7 @@ class BulkEquipmentDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Agregar varios equipos")
         self.setMinimumWidth(430)
+        self.setMaximumHeight(100)
 
         range_widget = QWidget(self)
         range_layout = QHBoxLayout(range_widget)
