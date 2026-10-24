@@ -1,22 +1,75 @@
-import os
-import sys
 import json
-from dataclasses import asdict, dataclass
-from pathlib import Path
-
 import requests
-from PyQt6.QtWidgets import (
-    QDialog, QHBoxLayout,
-    QMainWindow, QMessageBox, QPushButton, QTableWidget, 
-    QTableWidgetItem, QWidget
-)
+
 from PyQt6.QtCore import QTimer, QThreadPool
+from PyQt6.QtWidgets import (
+    QDialog,
+    QHBoxLayout,
+    QMainWindow,
+    QMessageBox,
+    QPushButton,
+    QTabWidget,
+    QTableWidget,
+    QTableWidgetItem,
+    QToolBar,
+    QVBoxLayout,
+    QWidget,
+)
 
 from action_req import ActionWorker
 from add_pc_dlg import KioskDialog
-from const import Kiosk
+from const import BASE_DIR, Kiosk
 from pollstatus import PollWorker
+from user_record_dialog import UserRecordDialog
 from utils import load_kiosks, format_duration, save_kiosks
+
+
+INTERNAL_STUDENTS_FILE = BASE_DIR / "internal_students.json"
+EXTERNAL_USERS_FILE = BASE_DIR / "external_users.json"
+
+INTERNAL_STUDENT_FIELDS = [
+    ("nombres", "Nombres"),
+    ("apellidos", "Apellidos"),
+    ("facultad", "Facultad"),
+    ("expediente", "Expediente"),
+]
+
+EXTERNAL_USER_FIELDS = [
+    ("nombres", "Nombres"),
+    ("apellidos", "Apellidos"),
+    ("tipo_usuario", "Tipo de usuario"),
+    ("universidad", "Universidad Perteneciente"),
+]
+
+
+def load_records(path, fields):
+    if not path.exists():
+        return []
+
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+
+    if not isinstance(data, list):
+        return []
+
+    records = []
+    for item in data:
+        if isinstance(item, dict):
+            records.append({
+                key: str(item.get(key, "") or "")
+                for key, _label in fields
+            })
+    return records
+
+
+def save_records(path, records):
+    temporary_path = path.with_suffix(path.suffix + ".tmp")
+    payload = json.dumps(records, indent=2, ensure_ascii=False)
+    temporary_path.write_text(payload, encoding="utf-8")
+    temporary_path.replace(path)
+
 
 class MainWindow(QMainWindow):
     COL_NAME = 0
@@ -31,32 +84,25 @@ class MainWindow(QMainWindow):
         self.resize(1100, 620)
 
         self.kiosks = load_kiosks()
+        self.internal_students = load_records(
+            INTERNAL_STUDENTS_FILE, INTERNAL_STUDENT_FIELDS
+        )
+        self.external_users = load_records(
+            EXTERNAL_USERS_FILE, EXTERNAL_USER_FIELDS
+        )
 
-        self.table = QTableWidget(0, 5)
-        self.table.setHorizontalHeaderLabels(
-            [
-                "Nombre del Equipo",
-                "IP del Equipo",
-                "Estado",
-                "Tiempo usando",
-                "Decisión",
-            ]
-        )
-        self.table.setAlternatingRowColors(True)
-        self.table.setSelectionBehavior(
-            QTableWidget.SelectionBehavior.SelectRows
-        )
-        self.table.setEditTriggers(
-            QTableWidget.EditTrigger.NoEditTriggers
-        )
-        self.table.horizontalHeader().setStretchLastSection(True)
-
-        self.setCentralWidget(self.table)
+        self.tabs = QTabWidget(self)
+        self.build_equipment_tab()
+        self.build_internal_students_tab()
+        self.build_external_users_tab()
+        self.setCentralWidget(self.tabs)
 
         self.build_menus()
         self.refresh_table()
+        self.refresh_internal_students_table()
+        self.refresh_external_users_table()
 
-        # Crear el pool para peticiones en segundo plano
+        # Crear el pool para peticiones en segundo plano.
         self.threadpool = QThreadPool.globalInstance()
 
         self.timer = QTimer(self)
@@ -65,14 +111,92 @@ class MainWindow(QMainWindow):
 
         self.poll_status()
 
+    @staticmethod
+    def configure_table(table, headers):
+        table.setColumnCount(len(headers))
+        table.setHorizontalHeaderLabels(headers)
+        table.setAlternatingRowColors(True)
+        table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        table.horizontalHeader().setStretchLastSection(True)
+
+    def build_equipment_tab(self):
+        self.equipment_tab = QWidget(self.tabs)
+        layout = QVBoxLayout(self.equipment_tab)
+
+        toolbar = QToolBar("Equipos", self.equipment_tab)
+        toolbar.setMovable(False)
+        add_equipment_action = toolbar.addAction("Agregar Equipo")
+        add_equipment_action.triggered.connect(self.add_kiosk)
+
+        self.table = QTableWidget(0, 5, self.equipment_tab)
+        self.configure_table(
+            self.table,
+            [
+                "Nombre del Equipo",
+                "IP del Equipo",
+                "Estado",
+                "Tiempo usando",
+                "Decisión",
+            ],
+        )
+
+        layout.addWidget(toolbar)
+        layout.addWidget(self.table)
+        self.tabs.addTab(self.equipment_tab, "Equipos")
+
+    def build_internal_students_tab(self):
+        self.internal_students_tab = QWidget(self.tabs)
+        layout = QVBoxLayout(self.internal_students_tab)
+
+        toolbar = QToolBar("Alumnos Internos Registrados", self.internal_students_tab)
+        toolbar.setMovable(False)
+        add_student_action = toolbar.addAction("Agregar Alumno")
+        add_student_action.triggered.connect(self.add_internal_student)
+
+        self.internal_students_table = QTableWidget(0, 5, self.internal_students_tab)
+        self.configure_table(
+            self.internal_students_table,
+            ["Indice", "Nombres", "Apellidos", "Facultad", "Expediente"],
+        )
+
+        layout.addWidget(toolbar)
+        layout.addWidget(self.internal_students_table)
+        self.tabs.addTab(
+            self.internal_students_tab, "Alumnos Internos Registrados"
+        )
+
+    def build_external_users_tab(self):
+        self.external_users_tab = QWidget(self.tabs)
+        layout = QVBoxLayout(self.external_users_tab)
+
+        toolbar = QToolBar("Usuarios Externos Registrados", self.external_users_tab)
+        toolbar.setMovable(False)
+        add_user_action = toolbar.addAction("Agregar Usuario")
+        add_user_action.triggered.connect(self.add_external_user)
+
+        self.external_users_table = QTableWidget(0, 5, self.external_users_tab)
+        self.configure_table(
+            self.external_users_table,
+            [
+                "Indice",
+                "Nombres",
+                "Apellidos",
+                "Tipo de usuario",
+                "Universidad Perteneciente",
+            ],
+        )
+
+        layout.addWidget(toolbar)
+        layout.addWidget(self.external_users_table)
+        self.tabs.addTab(
+            self.external_users_tab, "Usuarios Externos Registrados"
+        )
+
     def build_menus(self):
         menu_archivo = self.menuBar().addMenu("Archivo")
         action_exit = menu_archivo.addAction("Salir")
         action_exit.triggered.connect(self.close)
-
-        menu_edicion = self.menuBar().addMenu("Edición")
-        action_add = menu_edicion.addAction("Agregar Equipo")
-        action_add.triggered.connect(self.add_kiosk)
 
         menu_ayuda = self.menuBar().addMenu("Ayuda")
         action_about = menu_ayuda.addAction("Acerca de...")
@@ -109,6 +233,39 @@ class MainWindow(QMainWindow):
 
         self.table.resizeColumnsToContents()
         self.table.setColumnWidth(self.COL_ACTIONS, 330)
+
+    @staticmethod
+    def refresh_records_table(table, records, fields):
+        table.setRowCount(0)
+
+        for row_index, record in enumerate(records, start=1):
+            table.insertRow(row_index - 1)
+            table.setItem(
+                row_index - 1, 0, QTableWidgetItem(str(row_index))
+            )
+
+            for column_index, (key, _label) in enumerate(fields, start=1):
+                table.setItem(
+                    row_index - 1,
+                    column_index,
+                    QTableWidgetItem(record.get(key, "")),
+                )
+
+        table.resizeColumnsToContents()
+
+    def refresh_internal_students_table(self):
+        self.refresh_records_table(
+            self.internal_students_table,
+            self.internal_students,
+            INTERNAL_STUDENT_FIELDS,
+        )
+
+    def refresh_external_users_table(self):
+        self.refresh_records_table(
+            self.external_users_table,
+            self.external_users,
+            EXTERNAL_USER_FIELDS,
+        )
 
     @staticmethod
     def state_label(state: str) -> str:
@@ -161,60 +318,54 @@ class MainWindow(QMainWindow):
     def send_action(self, index: int, action: str):
         kiosk = self.kiosks[index]
         worker = ActionWorker(
-            kiosk, 
-            action, 
-            self.base_url(kiosk), 
-            self.auth_headers(kiosk)
+            kiosk,
+            action,
+            self.base_url(kiosk),
+            self.auth_headers(kiosk),
         )
-        
-        # Conectamos las señales a métodos de la interfaz
+
         worker.signals.error.connect(self.show_action_error)
-        
-        # Iniciamos el trabajador en el hilo en segundo plano
         self.threadpool.start(worker)
 
     def show_action_error(self, title: str, message: str):
-        # Este método se ejecuta de forma segura dentro del hilo principal de la UI
         QMessageBox.critical(self, title, message)
 
     def poll_status(self):
-        # Lanza las peticiones en paralelo sin bloquear la UI
         for index, kiosk in enumerate(self.kiosks):
             worker = PollWorker(
-                index, 
-                kiosk, 
-                self.base_url(kiosk), 
-                self.auth_headers(kiosk)
+                index,
+                kiosk,
+                self.base_url(kiosk),
+                self.auth_headers(kiosk),
             )
             worker.signals.finished.connect(self.on_poll_finished)
             self.threadpool.start(worker)
-    
+
     def on_poll_finished(self, index: int, new_state: str, new_seconds: object):
         if index >= len(self.kiosks):
             return
 
         kiosk = self.kiosks[index]
-        changed = (kiosk.state != new_state or kiosk.locked_seconds != new_seconds)
+        changed = (
+            kiosk.state != new_state or kiosk.locked_seconds != new_seconds
+        )
 
         if changed:
             kiosk.state = new_state
             kiosk.locked_seconds = new_seconds
-            # Actualizamos únicamente la celda/fila afectada sin reconstruir toda la tabla
             self.update_row(index)
-            
+
     def update_row(self, index: int):
         kiosk = self.kiosks[index]
-        
-        # Actualizar texto de Estado
+
         state_item = self.table.item(index, self.COL_STATE)
         if state_item:
             state_item.setText(self.state_label(kiosk.state))
 
-        # Actualizar texto de Tiempo
         time_item = self.table.item(index, self.COL_TIME)
         if time_item:
             time_item.setText(format_duration(kiosk.locked_seconds))
-    
+
     def poll_one(self, index: int) -> bool:
         kiosk = self.kiosks[index]
 
@@ -225,12 +376,10 @@ class MainWindow(QMainWindow):
                 timeout=2,
             )
             response.raise_for_status()
-
             data = response.json()
 
             new_state = data.get("state", "error")
             new_seconds = data.get("locked_seconds")
-
             changed = (
                 kiosk.state != new_state
                 or kiosk.locked_seconds != new_seconds
@@ -241,7 +390,9 @@ class MainWindow(QMainWindow):
             return changed
 
         except (requests.RequestException, ValueError):
-            changed = kiosk.state != "offline" or kiosk.locked_seconds is not None
+            changed = (
+                kiosk.state != "offline" or kiosk.locked_seconds is not None
+            )
             kiosk.state = "offline"
             kiosk.locked_seconds = None
             return changed
@@ -286,6 +437,54 @@ class MainWindow(QMainWindow):
         self.kiosks.pop(index)
         save_kiosks(self.kiosks)
         self.refresh_table()
+
+    def add_internal_student(self):
+        dialog = UserRecordDialog(
+            "Agregar Alumno",
+            INTERNAL_STUDENT_FIELDS,
+            self,
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        record = dialog.get_record()
+        updated_records = self.internal_students + [record]
+        try:
+            save_records(INTERNAL_STUDENTS_FILE, updated_records)
+        except OSError as exc:
+            QMessageBox.critical(
+                self,
+                "Error al guardar",
+                f"No se pudo guardar el alumno.\n\n{exc}",
+            )
+            return
+
+        self.internal_students = updated_records
+        self.refresh_internal_students_table()
+
+    def add_external_user(self):
+        dialog = UserRecordDialog(
+            "Agregar Usuario",
+            EXTERNAL_USER_FIELDS,
+            self,
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        record = dialog.get_record()
+        updated_records = self.external_users + [record]
+        try:
+            save_records(EXTERNAL_USERS_FILE, updated_records)
+        except OSError as exc:
+            QMessageBox.critical(
+                self,
+                "Error al guardar",
+                f"No se pudo guardar el usuario externo.\n\n{exc}",
+            )
+            return
+
+        self.external_users = updated_records
+        self.refresh_external_users_table()
 
     def show_about(self):
         QMessageBox.information(
