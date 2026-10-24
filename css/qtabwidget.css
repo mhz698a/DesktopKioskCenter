@@ -1,0 +1,46 @@
+/* Contenedor principal del QTabWidget */
+QTabWidget::pane {
+    border: 1px solid #E0E0E0;
+    border-radius: 4px;
+    background-color: #3b3b3b;
+    position: absolute;
+    top: -1px; /* Une visualmente la pestaña activa con el panel */
+}
+
+/* Barra que contiene todas las pestañas */
+QTabBar {
+    qproperty-drawBase: 0; /* Elimina la línea base nativa por defecto */
+    left: 5px; /* Margen inicial para despegar las pestañas del borde */
+}
+
+/* Estilo general para cada pestaña (Individual) */
+QTabBar::tab {
+    background-color: #3b3b3b;
+    color: #ffffff;
+    border: 1px solid #E0E0E0;
+    border-bottom: none; /* Oculta el borde inferior para conectar con el panel */
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+    padding: 8px 16px;
+    margin-right: 2px;
+    font-size: 13px;
+    font-family: "Segoe UI", sans-serif;
+}
+
+/* Efecto Hover (Cuando el usuario pasa el mouse por encima) */
+QTabBar::tab:hover {
+    border-top: 3px solid #a3d5fa;
+}
+
+/* Estilo de la pestaña Activa / Seleccionada */
+QTabBar::tab:selected {
+    background-color: #3b3b3b;
+    color: #c9e7ff; /* Color de acento moderno (puedes cambiarlo por tu color de marca) */
+    font-weight: bold;
+    border-top: 3px solid #0091ff; /* Línea indicadora superior muy limpia */
+    padding-bottom: 9px; /* Compensa el borde inferior oculto */
+}
+
+QTabBar::tab:!selected {
+    margin-top: 2px; /* Efecto visual de estar "detrás" */
+}

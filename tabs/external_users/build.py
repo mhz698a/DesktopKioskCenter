@@ -2,13 +2,13 @@ from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QHeaderView,
-    QTableWidget,
     QTableWidgetItem,
-    QToolBar,
     QVBoxLayout,
     QWidget,
 )
 
+from css.cqtoolbar import cQToolbar
+from css.cQTablewidget import cQTableW
 
 class ExternalUsersTab(QWidget):
     add_requested = pyqtSignal()
@@ -16,12 +16,12 @@ class ExternalUsersTab(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         layout = QVBoxLayout(self)
-        toolbar = QToolBar("Usuarios Externos Registrados", self)
+        toolbar = cQToolbar("Usuarios Externos Registrados", self)
         toolbar.setMovable(False)
         add_action = toolbar.addAction("Agregar Usuario")
         add_action.triggered.connect(lambda _checked=False: self.add_requested.emit())
 
-        self.table = QTableWidget(0, 5, self)
+        self.table = cQTableW(0, 5, self)
         self.table.setHorizontalHeaderLabels(
             [
                 "Índice",

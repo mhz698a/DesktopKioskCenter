@@ -7,15 +7,14 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QSplitter,
-    QTableWidget,
     QTableWidgetItem,
-    QToolBar,
     QVBoxLayout,
     QWidget,
 )
 
 from utils import format_duration
-
+from css.cqtoolbar import cQToolbar
+from css.cQTablewidget import cQTableW
 
 class EquipmentTab(QWidget):
     add_single_requested = pyqtSignal()
@@ -33,7 +32,7 @@ class EquipmentTab(QWidget):
 
     def _build(self):
         layout = QVBoxLayout(self)
-        toolbar = QToolBar("Equipos", self)
+        toolbar = cQToolbar("Equipos", self)
         toolbar.setMovable(False)
 
         add_action = toolbar.addAction("Agregar Equipo")
@@ -42,7 +41,7 @@ class EquipmentTab(QWidget):
         add_multiple_action.triggered.connect(lambda _checked=False: self.add_multiple_requested.emit())
 
         splitter = QSplitter(Qt.Orientation.Horizontal, self)
-        self.table = QTableWidget(0, 4, splitter)
+        self.table = cQTableW(0, 4, splitter)
         self.table.setHorizontalHeaderLabels(
             ["Nombre del Equipo", "IP del Equipo", "Estado", "Tiempo usando"]
         )

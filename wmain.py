@@ -18,6 +18,7 @@ from tabs.external_users.build import ExternalUsersTab
 from tabs.internal_students.backend import InternalStudentsBackend
 from tabs.internal_students.build import InternalStudentsTab
 
+from css.apply_qss import apply_css_sheet
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -28,7 +29,7 @@ class MainWindow(QMainWindow):
 
         self.threadpool = QThreadPool(self)
         self.threadpool.setMaxThreadCount(8)
-
+        
         root = QWidget(self)
         root_layout = QVBoxLayout(root)
         root_layout.setContentsMargins(12, 10, 12, 12)
@@ -64,6 +65,9 @@ class MainWindow(QMainWindow):
         self.equipment_tab = EquipmentTab(self.tabs)
         self.internal_students_tab = InternalStudentsTab(self.tabs)
         self.external_users_tab = ExternalUsersTab(self.tabs)
+        
+        self.tabs.setStyleSheet(apply_css_sheet("css/qtabwidget.css"))
+        
         self.tabs.addTab(self.equipment_tab, "Equipos")
         self.tabs.addTab(
             self.internal_students_tab, "Alumnos Internos Registrados"

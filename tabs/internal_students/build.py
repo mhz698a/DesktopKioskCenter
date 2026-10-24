@@ -4,11 +4,12 @@ from PyQt6.QtWidgets import (
     QHeaderView,
     QTableWidget,
     QTableWidgetItem,
-    QToolBar,
     QVBoxLayout,
     QWidget,
 )
 
+from css.cqtoolbar import cQToolbar
+from css.cQTablewidget import cQTableW
 
 class InternalStudentsTab(QWidget):
     add_requested = pyqtSignal()
@@ -16,12 +17,12 @@ class InternalStudentsTab(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         layout = QVBoxLayout(self)
-        toolbar = QToolBar("Alumnos Internos Registrados", self)
+        toolbar = cQToolbar("Alumnos Internos Registrados", self)
         toolbar.setMovable(False)
         add_action = toolbar.addAction("Agregar Alumno")
         add_action.triggered.connect(lambda _checked=False: self.add_requested.emit())
 
-        self.table = QTableWidget(0, 5, self)
+        self.table = cQTableW(0, 5, self)
         self.table.setHorizontalHeaderLabels(
             ["Índice", "Nombres", "Apellidos", "Facultad", "Expediente"]
         )

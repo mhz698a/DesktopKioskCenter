@@ -1,0 +1,51 @@
+/* Contenedor principal de la barra de herramientas */
+QToolBar {
+    background-color: #3b3b3b;
+    border: none;
+    border-bottom: 1px solid #E0E0E0; /* Línea divisoria delgada y limpia */
+    spacing: 4px; /* Espacio entre los botones de la barra */
+    padding: 4px 6px;
+}
+
+/* Estilo para los botones individuales dentro de la barra (QToolButton) */
+QToolButton {
+    background-color: transparent; /* Fondo transparente por defecto */
+    border: none;
+    border-radius: 4px; /* Bordes ligeramente redondeados */
+    padding: 6px;
+    color: #ffffff;
+    font-family: "Segoe UI", sans-serif;
+    font-size: 13px;
+}
+
+/* Efecto Hover (Cuando pasas el mouse por encima) */
+QToolButton:hover {
+    background-color: #545454; /* Resalte gris claro muy sutil */
+    color: #fff;
+}
+
+/* Efecto Pressed (Cuando haces clic) */
+QToolButton:pressed {
+    background-color: #949494;
+}
+
+/* Estilo cuando el botón está activado/comprobado (Ej. botones tipo toggle o radio) */
+QToolButton:checked {
+    background-color: #E2F0FD; /* Fondo azul claro semi-transparente */
+    color: #0078D4; /* Texto o ícono en el color de acento */
+}
+
+/* Estilo para los menús desplegables integrados en los botones (si los usas) */
+QToolButton::menu-indicator {
+    image: none; /* Elimina la flecha clásica si prefieres un look más limpio */
+    /* O puedes sustituirla por un pequeño triángulo personalizado si lo requieres */
+}
+
+/* Estilo de los separadores de la barra de herramientas */
+QToolBar::separator {
+    background-color: #E0E0E0;
+    width: 1px; /* Convierte el separador en una línea vertical delgada */
+    height: 16px;
+    margin-left: 6px;
+    margin-right: 6px;
+}
