@@ -27,8 +27,8 @@ class KioskDialog(QDialog):
 
         form = QFormLayout()
         form.addRow("Nombre:", self.name)
-        form.addRow("IP / Host:", self.host)
-        form.addRow("Puerto:", self.port)
+        form.addRow("IP del cliente:", self.host)
+        form.addRow("Puerto (Solo Lectura):", self.port)
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok
             | QDialogButtonBox.StandardButton.Cancel,

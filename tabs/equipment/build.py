@@ -70,10 +70,10 @@ class EquipmentTab(QWidget):
         self.state_input = QLineEdit(self.editor_panel)
         self.state_input.setReadOnly(True)
 
-        editor_form.addRow("Nombre:", self.name_input)
-        editor_form.addRow("IP / Host:", self.host_input)
-        editor_form.addRow("Puerto:", self.port_input)
-        editor_form.addRow("Estado:", self.state_input)
+        editor_form.addRow("Nombre del Equipo:", self.name_input)
+        editor_form.addRow("IP del Cliente:", self.host_input)
+        editor_form.addRow("Puerto (Solo Lectura):", self.port_input)
+        editor_form.addRow("Estado (Solo Lectura):", self.state_input)
         editor_layout.addLayout(editor_form)
 
         action_row = QHBoxLayout()
