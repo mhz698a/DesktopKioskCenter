@@ -7,6 +7,7 @@ from wmain import MainWindow
 
 def main():
     app = QApplication(sys.argv)
+    app.setStyle("windows")
     window = MainWindow()
     window.show()
     return app.exec()
