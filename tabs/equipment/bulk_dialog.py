@@ -37,8 +37,18 @@ class BulkEquipmentDialog(QDialog):
 
         self.name_base_input = QLineEdit("PC #", self)
         self.name_base_input.setPlaceholderText("Ejemplo: PC #")
+        self.name_base_input.setToolTip(
+            "Prefijo o nombre base para identificar a los equipos (ej. PC #)\n"
+            "Ejemplo con rango 1-15: PC #1 hasta PC #15\n"
+            "Se agrega al final la numeracion correspondiente."
+        )
         self.ip_base_input = QLineEdit("192.168.100._", self)
         self.ip_base_input.setPlaceholderText("Ejemplo: 192.168.100._")
+        self.ip_base_input.setToolTip(
+            "Base de la dirección IP donde se intercalará el número del equipo\n"
+            "Ejemplo con rango 1-15: 192.168.100.1 hasta 192.168.100.15\n"
+            "Dejar el ultimo octeto con guion bajo para rango."
+        )
 
         form = QFormLayout()
         form.addRow("Rango de equipos:", range_widget)
