@@ -20,7 +20,7 @@ class ActionWorker(QRunnable):
             response = requests.post(
                 f"{self.base_url}/api/kiosk/{self.action}",
                 headers=self.headers,
-                timeout=5,
+                timeout=(2, 2),
             )
 
             if response.status_code == 202:
@@ -48,7 +48,10 @@ class ActionWorker(QRunnable):
             )
 
         except requests.RequestException as exc:
-            self.signals.error.emit(
-                "Error de comunicación",
-                f"No se pudo conectar con «{self.kiosk.name}».\n\n{exc}"
-            )
+            try:
+                self.signals.error.emit(
+                    "Error de comunicación",
+                    f"No se pudo conectar con «{self.kiosk.name}».\n\n{exc}"
+                )
+            except RuntimeError:
+                return

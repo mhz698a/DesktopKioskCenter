@@ -1,13 +1,17 @@
 import json
 import requests
 
-from PyQt6.QtCore import QTimer, QThreadPool
+from PyQt6.QtCore import QTimer, QThreadPool, Qt
 from PyQt6.QtWidgets import (
+    QAbstractItemView,
     QDialog,
+    QFormLayout,
     QHBoxLayout,
+    QLineEdit,
     QMainWindow,
     QMessageBox,
     QPushButton,
+    QSplitter,
     QTabWidget,
     QTableWidget,
     QTableWidgetItem,
@@ -18,7 +22,7 @@ from PyQt6.QtWidgets import (
 
 from action_req import ActionWorker
 from add_pc_dlg import KioskDialog
-from const import BASE_DIR, Kiosk
+from const import BASE_DIR, DEFAULT_TOKEN, Kiosk
 from pollstatus import PollWorker
 from user_record_dialog import UserRecordDialog
 from utils import load_kiosks, format_duration, save_kiosks
@@ -76,14 +80,27 @@ class MainWindow(QMainWindow):
     COL_IP = 1
     COL_STATE = 2
     COL_TIME = 3
-    COL_ACTIONS = 4
 
     def __init__(self):
         super().__init__()
         self.setWindowTitle("DesktopKioskCenter")
         self.resize(1100, 620)
 
+        self._closing = False
+        self.selected_kiosk_index = None
         self.kiosks = load_kiosks()
+        token_changed = False
+        for kiosk in self.kiosks:
+            if kiosk.token != DEFAULT_TOKEN:
+                kiosk.token = DEFAULT_TOKEN
+                token_changed = True
+        if token_changed:
+            try:
+                save_kiosks(self.kiosks)
+            except OSError:
+                # El token fijo se usa aunque no sea posible actualizar el archivo.
+                pass
+
         self.internal_students = load_records(
             INTERNAL_STUDENTS_FILE, INTERNAL_STUDENT_FIELDS
         )
@@ -102,8 +119,9 @@ class MainWindow(QMainWindow):
         self.refresh_internal_students_table()
         self.refresh_external_users_table()
 
-        # Crear el pool para peticiones en segundo plano.
-        self.threadpool = QThreadPool.globalInstance()
+        # Pool propio para esperar a los trabajadores al cerrar esta ventana.
+        self.threadpool = QThreadPool(self)
+        self.threadpool.setMaxThreadCount(8)
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.poll_status)
@@ -129,20 +147,62 @@ class MainWindow(QMainWindow):
         add_equipment_action = toolbar.addAction("Agregar Equipo")
         add_equipment_action.triggered.connect(self.add_kiosk)
 
-        self.table = QTableWidget(0, 5, self.equipment_tab)
+        splitter = QSplitter(Qt.Orientation.Horizontal, self.equipment_tab)
+        self.table = QTableWidget(0, 4, splitter)
         self.configure_table(
             self.table,
-            [
-                "Nombre del Equipo",
-                "IP del Equipo",
-                "Estado",
-                "Tiempo usando",
-                "Decisión",
-            ],
+            ["Nombre del Equipo", "IP del Equipo", "Estado", "Tiempo usando"],
         )
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.table.itemSelectionChanged.connect(self.on_equipment_selection_changed)
+
+        self.editor_panel = QWidget(splitter)
+        editor_layout = QVBoxLayout(self.editor_panel)
+        editor_form = QFormLayout()
+        self.edit_name = QLineEdit(self.editor_panel)
+        self.edit_host = QLineEdit(self.editor_panel)
+        self.edit_port = QLineEdit(self.editor_panel)
+        self.edit_state = QLineEdit(self.editor_panel)
+        self.edit_state.setReadOnly(True)
+        editor_form.addRow("Nombre:", self.edit_name)
+        editor_form.addRow("IP / Host:", self.edit_host)
+        editor_form.addRow("Puerto:", self.edit_port)
+        editor_form.addRow("Estado:", self.edit_state)
+        editor_layout.addLayout(editor_form)
+
+        action_buttons = QHBoxLayout()
+        self.lock_button = QPushButton("Bloquear", self.editor_panel)
+        self.unlock_button = QPushButton("Desbloquear", self.editor_panel)
+        self.delete_button = QPushButton("Eliminar", self.editor_panel)
+        action_buttons.addWidget(self.lock_button)
+        action_buttons.addWidget(self.unlock_button)
+        action_buttons.addWidget(self.delete_button)
+        editor_layout.addLayout(action_buttons)
+
+        edit_buttons = QHBoxLayout()
+        self.save_button = QPushButton("Guardar cambios", self.editor_panel)
+        self.revert_button = QPushButton("Revertir cambios", self.editor_panel)
+        edit_buttons.addWidget(self.save_button)
+        edit_buttons.addWidget(self.revert_button)
+        editor_layout.addLayout(edit_buttons)
+        editor_layout.addStretch(1)
+
+        self.lock_button.clicked.connect(lambda _=False: self.send_selected_action("lock"))
+        self.unlock_button.clicked.connect(lambda _=False: self.send_selected_action("unlock"))
+        self.delete_button.clicked.connect(self.remove_selected_kiosk)
+        self.save_button.clicked.connect(self.save_kiosk_changes)
+        self.revert_button.clicked.connect(self.revert_kiosk_changes)
+
+        splitter.addWidget(self.table)
+        splitter.addWidget(self.editor_panel)
+        splitter.setStretchFactor(0, 3)
+        splitter.setStretchFactor(1, 2)
+        splitter.setSizes([680, 380])
+        self.editor_panel.setEnabled(False)
 
         layout.addWidget(toolbar)
-        layout.addWidget(self.table)
+        layout.addWidget(splitter)
         self.tabs.addTab(self.equipment_tab, "Equipos")
 
     def build_internal_students_tab(self):
@@ -202,37 +262,43 @@ class MainWindow(QMainWindow):
         action_about = menu_ayuda.addAction("Acerca de...")
         action_about.triggered.connect(self.show_about)
 
-    def refresh_table(self):
+    def refresh_table(self, select_index=None):
+        self.table.blockSignals(True)
         self.table.setRowCount(0)
-
         for index, kiosk in enumerate(self.kiosks):
             self.table.insertRow(index)
-
             self.table.setItem(index, self.COL_NAME, QTableWidgetItem(kiosk.name))
-            self.table.setItem(
-                index,
-                self.COL_IP,
-                QTableWidgetItem(f"{kiosk.host}:{kiosk.port}"),
-            )
-            self.table.setItem(
-                index,
-                self.COL_STATE,
-                QTableWidgetItem(self.state_label(kiosk.state)),
-            )
-            self.table.setItem(
-                index,
-                self.COL_TIME,
-                QTableWidgetItem(format_duration(kiosk.locked_seconds)),
-            )
-
-            self.table.setCellWidget(
-                index,
-                self.COL_ACTIONS,
-                self.make_action_widget(index, kiosk),
-            )
-
+            self.table.setItem(index, self.COL_IP, QTableWidgetItem(f"{kiosk.host}:{kiosk.port}"))
+            self.table.setItem(index, self.COL_STATE, QTableWidgetItem(self.state_label(kiosk.state)))
+            self.table.setItem(index, self.COL_TIME, QTableWidgetItem(format_duration(kiosk.locked_seconds)))
         self.table.resizeColumnsToContents()
-        self.table.setColumnWidth(self.COL_ACTIONS, 330)
+        if select_index is not None and 0 <= select_index < len(self.kiosks):
+            self.table.selectRow(select_index)
+        else:
+            self.table.clearSelection()
+        self.table.blockSignals(False)
+        self.on_equipment_selection_changed()
+
+    def on_equipment_selection_changed(self):
+        if self._closing:
+            return
+        selected_rows = self.table.selectionModel().selectedRows()
+        if not selected_rows:
+            self.selected_kiosk_index = None
+            self.editor_panel.setEnabled(False)
+            self.edit_name.clear()
+            self.edit_host.clear()
+            self.edit_port.clear()
+            self.edit_state.clear()
+            return
+        index = selected_rows[0].row()
+        if not 0 <= index < len(self.kiosks):
+            self.selected_kiosk_index = None
+            self.editor_panel.setEnabled(False)
+            return
+        self.selected_kiosk_index = index
+        self.editor_panel.setEnabled(True)
+        self.revert_kiosk_changes()
 
     @staticmethod
     def refresh_records_table(table, records, fields):
@@ -276,73 +342,42 @@ class MainWindow(QMainWindow):
             "error": "Error",
         }.get(state, state)
 
-    def make_action_widget(self, row: int, kiosk: Kiosk) -> QWidget:
-        container = QWidget()
-        layout = QHBoxLayout(container)
-        layout.setContentsMargins(4, 2, 4, 2)
-
-        lock_button = QPushButton("Bloquear")
-        unlock_button = QPushButton("Desbloquear")
-        edit_button = QPushButton("Editar")
-        remove_button = QPushButton("Quitar")
-
-        lock_button.clicked.connect(
-            lambda _=False, i=row: self.send_action(i, "lock")
-        )
-        unlock_button.clicked.connect(
-            lambda _=False, i=row: self.send_action(i, "unlock")
-        )
-        edit_button.clicked.connect(
-            lambda _=False, i=row: self.edit_kiosk(i)
-        )
-        remove_button.clicked.connect(
-            lambda _=False, i=row: self.remove_kiosk(i)
-        )
-
-        layout.addWidget(lock_button)
-        layout.addWidget(unlock_button)
-        layout.addWidget(edit_button)
-        layout.addWidget(remove_button)
-
-        return container
-
     def base_url(self, kiosk: Kiosk) -> str:
         return f"http://{kiosk.host}:{kiosk.port}"
 
     def auth_headers(self, kiosk: Kiosk) -> dict[str, str]:
         return {
-            "Authorization": f"Bearer {kiosk.token}",
+            "Authorization": f"Bearer {DEFAULT_TOKEN}",
             "Content-Type": "application/json",
         }
 
-    def send_action(self, index: int, action: str):
+    def send_selected_action(self, action: str):
+        index = self.selected_kiosk_index
+        if self._closing or index is None or not 0 <= index < len(self.kiosks):
+            return
         kiosk = self.kiosks[index]
         worker = ActionWorker(
-            kiosk,
-            action,
-            self.base_url(kiosk),
-            self.auth_headers(kiosk),
+            kiosk, action, self.base_url(kiosk), self.auth_headers(kiosk)
         )
-
         worker.signals.error.connect(self.show_action_error)
         self.threadpool.start(worker)
 
     def show_action_error(self, title: str, message: str):
-        QMessageBox.critical(self, title, message)
+        if not self._closing:
+            QMessageBox.critical(self, title, message)
 
     def poll_status(self):
+        if self._closing:
+            return
         for index, kiosk in enumerate(self.kiosks):
             worker = PollWorker(
-                index,
-                kiosk,
-                self.base_url(kiosk),
-                self.auth_headers(kiosk),
+                index, kiosk, self.base_url(kiosk), self.auth_headers(kiosk)
             )
             worker.signals.finished.connect(self.on_poll_finished)
             self.threadpool.start(worker)
 
     def on_poll_finished(self, index: int, new_state: str, new_seconds: object):
-        if index >= len(self.kiosks):
+        if self._closing or index >= len(self.kiosks):
             return
 
         kiosk = self.kiosks[index]
@@ -399,44 +434,89 @@ class MainWindow(QMainWindow):
 
     def add_kiosk(self):
         dialog = KioskDialog(self)
-
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
+        kiosk = dialog.get_kiosk()
+        self.kiosks.append(kiosk)
+        try:
+            save_kiosks(self.kiosks)
+        except OSError as exc:
+            self.kiosks.pop()
+            QMessageBox.critical(self, "Error al guardar", f"No se pudo guardar el equipo.\n\n{exc}")
+            return
+        self.refresh_table(select_index=len(self.kiosks) - 1)
 
-        self.kiosks.append(dialog.get_kiosk())
-        save_kiosks(self.kiosks)
-        self.refresh_table()
-
-    def edit_kiosk(self, index: int):
+    def revert_kiosk_changes(self):
+        index = self.selected_kiosk_index
+        if index is None or not 0 <= index < len(self.kiosks):
+            return
         kiosk = self.kiosks[index]
-        dialog = KioskDialog(self, kiosk)
+        self.edit_name.setText(kiosk.name)
+        self.edit_host.setText(kiosk.host)
+        self.edit_port.setText(str(kiosk.port))
+        self.edit_state.setText(self.state_label(kiosk.state))
 
-        if dialog.exec() != QDialog.DialogCode.Accepted:
+    def save_kiosk_changes(self):
+        index = self.selected_kiosk_index
+        if index is None or not 0 <= index < len(self.kiosks):
+            return
+        name = self.edit_name.text().strip()
+        host = self.edit_host.text().strip()
+        port_text = self.edit_port.text().strip()
+        if not name:
+            QMessageBox.warning(self, "Validación", "El nombre es obligatorio.")
+            self.edit_name.setFocus()
+            return
+        if not host:
+            QMessageBox.warning(self, "Validación", "La IP o host es obligatorio.")
+            self.edit_host.setFocus()
+            return
+        try:
+            port = int(port_text)
+            if not 1 <= port <= 65535:
+                raise ValueError
+        except ValueError:
+            QMessageBox.warning(self, "Validación", "El puerto debe ser un entero entre 1 y 65535.")
+            self.edit_port.setFocus()
             return
 
-        updated = dialog.get_kiosk()
-        updated.state = kiosk.state
-        updated.locked_seconds = kiosk.locked_seconds
+        original = self.kiosks[index]
+        self.kiosks[index] = Kiosk(
+            name=name, host=host, port=port, token=DEFAULT_TOKEN,
+            state=original.state, locked_seconds=original.locked_seconds,
+        )
+        try:
+            save_kiosks(self.kiosks)
+        except OSError as exc:
+            self.kiosks[index] = original
+            QMessageBox.critical(self, "Error al guardar", f"No se pudieron guardar los cambios.\n\n{exc}")
+            return
+        self.refresh_table(select_index=index)
 
-        self.kiosks[index] = updated
-        save_kiosks(self.kiosks)
-        self.refresh_table()
-
-    def remove_kiosk(self, index: int):
+    def remove_selected_kiosk(self):
+        index = self.selected_kiosk_index
+        if index is None or not 0 <= index < len(self.kiosks):
+            return
         kiosk = self.kiosks[index]
-
         answer = QMessageBox.question(
             self,
-            "Quitar equipo",
-            f"¿Quitar «{kiosk.name}» de la lista?",
+            "Eliminar equipo",
+            f"¿Eliminar «{kiosk.name}» de la lista?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
         )
-
         if answer != QMessageBox.StandardButton.Yes:
             return
 
-        self.kiosks.pop(index)
-        save_kiosks(self.kiosks)
-        self.refresh_table()
+        removed = self.kiosks.pop(index)
+        try:
+            save_kiosks(self.kiosks)
+        except OSError as exc:
+            self.kiosks.insert(index, removed)
+            QMessageBox.critical(self, "Error al guardar", f"No se pudo eliminar el equipo.\n\n{exc}")
+            return
+        next_index = min(index, len(self.kiosks) - 1) if self.kiosks else None
+        self.refresh_table(select_index=next_index)
 
     def add_internal_student(self):
         dialog = UserRecordDialog(
@@ -485,6 +565,15 @@ class MainWindow(QMainWindow):
 
         self.external_users = updated_records
         self.refresh_external_users_table()
+
+    def closeEvent(self, event):
+        self._closing = True
+        if hasattr(self, "timer"):
+            self.timer.stop()
+        if hasattr(self, "threadpool"):
+            self.threadpool.clear()
+            self.threadpool.waitForDone()
+        event.accept()
 
     def show_about(self):
         QMessageBox.information(
