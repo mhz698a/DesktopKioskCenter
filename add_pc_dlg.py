@@ -17,6 +17,8 @@ class KioskDialog(QDialog):
         self.name = QLineEdit(self)
         self.host = QLineEdit(self)
         self.port = QLineEdit("7085", self)
+        self.port.setReadOnly(True)
+
         if kiosk is not None:
             self.name.setText(kiosk.name)
             self.host.setText(kiosk.host)
@@ -27,7 +29,8 @@ class KioskDialog(QDialog):
         form.addRow("IP / Host:", self.host)
         form.addRow("Puerto:", self.port)
         buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
+            QDialogButtonBox.StandardButton.Ok
+            | QDialogButtonBox.StandardButton.Cancel,
             parent=self,
         )
         buttons.accepted.connect(self.accept)
@@ -52,13 +55,5 @@ class KioskDialog(QDialog):
         if not self.host.text().strip():
             QMessageBox.warning(self, "Validación", "La IP o host es obligatorio.")
             self.host.setFocus()
-            return
-        try:
-            port = int(self.port.text().strip())
-            if not 1 <= port <= 65535:
-                raise ValueError
-        except ValueError:
-            QMessageBox.warning(self, "Validación", "El puerto debe ser un entero entre 1 y 65535.")
-            self.port.setFocus()
             return
         super().accept()
