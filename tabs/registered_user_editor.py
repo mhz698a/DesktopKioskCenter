@@ -26,21 +26,24 @@ class RegisteredUserEditor(QWidget):
             if kind == "student" else
             [("nombres", "Nombres"), ("apellidos", "Apellidos"),
              ("tipo_usuario", "Tipo de usuario"),
-             ("universidad", "Universidad Perteneciente")]
+             ("universidad", "Universidad")]
         )
         form = QFormLayout()
         for key, label in fields:
             widget = self._create_field(key)
             self.inputs[key] = widget
             form.addRow(label + ":", widget)
-
-        buttons = QHBoxLayout()
+        
+        buttons = QVBoxLayout()
         self.delete_button = QPushButton("Eliminar Usuario", self)
+        buttons.addWidget(self.delete_button)
+        botones_inferiores = QHBoxLayout()
         self.save_button = QPushButton("Guardar Cambios", self)
         self.revert_button = QPushButton("Revertir Cambios", self)
-        buttons.addWidget(self.delete_button)
-        buttons.addWidget(self.save_button)
-        buttons.addWidget(self.revert_button)
+        botones_inferiores.addWidget(self.save_button)
+        botones_inferiores.addWidget(self.revert_button)
+        buttons.addLayout(botones_inferiores)
+
         layout = QVBoxLayout(self)
         layout.addLayout(form)
         layout.addLayout(buttons)
@@ -67,6 +70,8 @@ class RegisteredUserEditor(QWidget):
             widget.addItems(UNIVERSIDADES_QUERETARO)
             widget.setCurrentIndex(-1)
             widget.setEnabled(False)
+            widget.setMinimumWidth(270)
+            widget.setMaximumWidth(568)
             return widget
         widget = QLineEdit(self)
         widget.setClearButtonEnabled(True)

@@ -22,7 +22,7 @@ class ExternalUsersTab(QWidget):
 
         splitter = QSplitter(Qt.Orientation.Horizontal, self)
         self.table = cQTableW(0, 5, splitter)
-        self.table.setHorizontalHeaderLabels(["Índice", "Nombres", "Apellidos", "Tipo de usuario", "Universidad Perteneciente"])
+        self.table.setHorizontalHeaderLabels(["Índice", "Nombres", "Apellidos", "Tipo de usuario", "Universidad"])
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
