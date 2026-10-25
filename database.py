@@ -84,6 +84,20 @@ class Database:
                     message TEXT NOT NULL DEFAULT ''
                 );
 
+                CREATE TABLE IF NOT EXISTS access_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    accessed_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+                    kiosk_name TEXT NOT NULL DEFAULT '',
+                    nombres TEXT NOT NULL DEFAULT '',
+                    apellidos TEXT NOT NULL DEFAULT '',
+                    expediente TEXT NOT NULL DEFAULT '',
+                    facultad TEXT NOT NULL DEFAULT '',
+                    universidad_externa TEXT NOT NULL DEFAULT '',
+                    tipo_usuario TEXT NOT NULL DEFAULT ''
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_access_logs_accessed_at
+                    ON access_logs(accessed_at);
                 CREATE INDEX IF NOT EXISTS idx_external_users_name
                     ON external_users(apellidos, nombres);
                 CREATE INDEX IF NOT EXISTS idx_received_logins_received_at
@@ -219,6 +233,27 @@ class Database:
             )
             return int(cursor.lastrowid)
 
+    def update_internal_student(self, student_id: int, record: dict) -> bool:
+        """Actualiza un alumno existente; expediente sigue protegido por UNIQUE."""
+        with self.connection() as connection:
+            cursor = connection.execute(
+                """UPDATE internal_students
+                   SET nombres = ?, apellidos = ?, facultad = ?, expediente = ?
+                   WHERE id = ?""",
+                (record["nombres"].strip(), record["apellidos"].strip(),
+                 record["facultad"].strip(), record["expediente"].strip(),
+                 int(student_id)),
+            )
+            return cursor.rowcount > 0
+
+    def delete_internal_student(self, student_id: int) -> bool:
+        """Elimina el alumno por su clave primaria SQLite."""
+        with self.connection() as connection:
+            cursor = connection.execute(
+                "DELETE FROM internal_students WHERE id = ?", (int(student_id),)
+            )
+            return cursor.rowcount > 0
+
     def list_external_users(self) -> list[dict]:
         """Devuelve los usuarios externos y público general en orden de alta."""
         with self.connection() as connection:
@@ -254,6 +289,91 @@ class Database:
                 ),
             )
             return int(cursor.lastrowid)
+
+    def update_external_user(self, user_id: int, record: dict) -> bool:
+        """Actualiza un usuario; limpia universidad si no es estudiante externo."""
+        tipo_usuario = record["tipo_usuario"].strip()
+        universidad = record.get("universidad", "").strip()
+        if tipo_usuario != "Estudiante Externo":
+            universidad = ""
+        with self.connection() as connection:
+            cursor = connection.execute(
+                """UPDATE external_users
+                   SET nombres = ?, apellidos = ?, tipo_usuario = ?, universidad = ?
+                   WHERE id = ?""",
+                (record["nombres"].strip(), record["apellidos"].strip(),
+                 tipo_usuario, universidad, int(user_id)),
+            )
+            return cursor.rowcount > 0
+
+    def delete_external_user(self, user_id: int) -> bool:
+        """Elimina el usuario por su clave primaria SQLite."""
+        with self.connection() as connection:
+            cursor = connection.execute(
+                "DELETE FROM external_users WHERE id = ?", (int(user_id),)
+            )
+            return cursor.rowcount > 0
+
+    def list_access_logs(self, limit: int | None = 1000) -> list[dict]:
+        """Lista los eventos de acceso más recientes."""
+        fields = ("id, accessed_at, kiosk_name, nombres, apellidos, expediente, "
+                  "facultad, universidad_externa, tipo_usuario")
+        with self.connection() as connection:
+            if limit is None:
+                rows = connection.execute(
+                    f"SELECT {fields} FROM access_logs ORDER BY id DESC"
+                ).fetchall()
+            else:
+                rows = connection.execute(
+                    f"SELECT {fields} FROM access_logs ORDER BY id DESC LIMIT ?",
+                    (max(1, int(limit)),),
+                ).fetchall()
+            return self._as_dicts(rows)
+
+    def record_access_log(
+        self, *, kiosk_name: str = "", nombres: str = "", apellidos: str = "",
+        expediente: str = "", facultad: str = "", universidad_externa: str = "",
+        tipo_usuario: str = "", accessed_at: str | None = None,
+    ) -> int:
+        """Registra un acceso para que lo invoque el servicio de autenticación."""
+        values = (kiosk_name.strip(), nombres.strip(), apellidos.strip(),
+                  expediente.strip(), facultad.strip(), universidad_externa.strip(),
+                  tipo_usuario.strip())
+        with self.connection() as connection:
+            if accessed_at:
+                cursor = connection.execute(
+                    """INSERT INTO access_logs
+                       (accessed_at, kiosk_name, nombres, apellidos, expediente,
+                        facultad, universidad_externa, tipo_usuario)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (accessed_at.strip(), *values),
+                )
+            else:
+                cursor = connection.execute(
+                    """INSERT INTO access_logs
+                       (kiosk_name, nombres, apellidos, expediente, facultad,
+                        universidad_externa, tipo_usuario)
+                       VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    values,
+                )
+            return int(cursor.lastrowid)
+
+    def count_access_logs(self) -> dict:
+        """Calcula total de accesos y subtotales por tipo de usuario y equipo."""
+        with self.connection() as connection:
+            total = connection.execute("SELECT COUNT(*) FROM access_logs").fetchone()[0]
+            by_type = connection.execute(
+                """SELECT COALESCE(NULLIF(tipo_usuario, ''), 'Sin especificar') AS label,
+                          COUNT(*) AS total
+                   FROM access_logs GROUP BY label ORDER BY total DESC, label"""
+            ).fetchall()
+            by_kiosk = connection.execute(
+                """SELECT COALESCE(NULLIF(kiosk_name, ''), 'Sin especificar') AS label,
+                          COUNT(*) AS total
+                   FROM access_logs GROUP BY label ORDER BY total DESC, label"""
+            ).fetchall()
+            return {"total": int(total), "by_type": self._as_dicts(by_type),
+                    "by_kiosk": self._as_dicts(by_kiosk)}
 
     def list_received_logins(self, limit: int | None = 1000) -> list[dict]:
         """Lista los eventos más recientes que el servidor central ha recibido."""

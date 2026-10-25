@@ -16,6 +16,8 @@ from tabs.internal_students.backend import InternalStudentsBackend
 from tabs.internal_students.build import InternalStudentsTab
 from tabs.received_logins.backend import ReceivedLoginsBackend
 from tabs.received_logins.build import ReceivedLoginsTab
+from tabs.access_logs.backend import AccessLogsBackend
+from tabs.access_logs.build import AccessLogsTab
 
 
 class MainWindow(QMainWindow):
@@ -73,6 +75,7 @@ class MainWindow(QMainWindow):
         self.internal_students_tab = InternalStudentsTab(self.tabs)
         self.external_users_tab = ExternalUsersTab(self.tabs)
         self.received_logins_tab = ReceivedLoginsTab(self.tabs)
+        self.access_logs_tab = AccessLogsTab(self.tabs)
 
         self.tabs.setStyleSheet(apply_css_sheet("css/qtabwidget.css"))
         self.tabs.addTab(self.equipment_tab, "Equipos")
@@ -82,7 +85,8 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(
             self.external_users_tab, "Usuarios Externos Registrados"
         )
-        self.tabs.addTab(self.received_logins_tab, "Inicios Recibidos")
+        self.tabs.addTab(self.received_logins_tab, "Logs de peticiones")
+        self.tabs.addTab(self.access_logs_tab, "Logs de accesos")
 
         self.equipment_backend = EquipmentBackend(
             self.equipment_tab, self.threadpool, self
@@ -95,6 +99,9 @@ class MainWindow(QMainWindow):
         )
         self.received_logins_backend = ReceivedLoginsBackend(
             self.received_logins_tab, self.database, self
+        )
+        self.access_logs_backend = AccessLogsBackend(
+            self.access_logs_tab, self.database, self
         )
 
         root_layout.addWidget(header)

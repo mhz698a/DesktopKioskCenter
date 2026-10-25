@@ -1,7 +1,6 @@
-"""Interfaz de la pestaña Inicios Recibidos; solo dibuja datos que recibe del backend."""
+"""Interfaz de la pestaña Logs de peticiones."""
 from PyQt6.QtWidgets import QHeaderView, QVBoxLayout, QWidget, QTableWidgetItem
 
-from css.cQDialogs import cQMsgBox
 from css.cQTablewidget import cQTableW
 from css.cqtoolbar import cQToolbar
 from PyQt6.QtCore import pyqtSignal
@@ -14,7 +13,7 @@ class ReceivedLoginsTab(QWidget):
         super().__init__(parent)
         layout = QVBoxLayout(self)
 
-        toolbar = cQToolbar("Inicios Recibidos", self)
+        toolbar = cQToolbar("Logs de peticiones", self)
         toolbar.setMovable(False)
         count_action = toolbar.addAction("Contar Totales")
         count_action.triggered.connect(

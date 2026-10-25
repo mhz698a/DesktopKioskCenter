@@ -1,4 +1,4 @@
-"""Backend de la pestaña Inicios Recibidos; todas las lecturas usan Database/SQLite."""
+"""Backend de la pestaña Logs de peticiones; todas las lecturas usan Database/SQLite."""
 from PyQt6.QtCore import QObject
 from PyQt6.QtWidgets import QWidget
 
@@ -27,11 +27,11 @@ class ReceivedLoginsBackend(QObject):
             cQMsgBox.critical(
                 self.view,
                 "Error de base de datos",
-                f"No se pudieron contar los inicios recibidos.\n\n{exc}",
+                f"No se pudieron contar los logs de peticiones.\n\n{exc}",
             )
             return
 
-        lines = [f"Total de inicios recibidos: {summary['total']}"]
+        lines = [f"Total de logs de peticiones: {summary['total']}"]
 
         if summary["by_type"]:
             lines.append("")
@@ -51,6 +51,6 @@ class ReceivedLoginsBackend(QObject):
 
         cQMsgBox.information(
             self.view,
-            "Totales de inicios recibidos",
+            "Totales de logs de peticiones",
             "\n".join(lines),
         )
