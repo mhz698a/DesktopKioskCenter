@@ -39,7 +39,9 @@ Si una fila de alumno tiene un expediente que ya existe, la restricción UNIQUE 
 
 ### `external_users`
 
-Contiene `id`, `nombres`, `apellidos`, `tipo_usuario`, `universidad` y `created_at`. El tipo de usuario determina si corresponde guardar una universidad. Para `Trabajador Interno` y `Público en general`, el backend limpia ese campo.
+Contiene `id`, `nombres`, `apellidos`, `email`, `tipo_usuario`, `universidad` y `created_at`. Email puede quedar vacío para estudiantes externos que se registran mediante el contrato de cliente actual; para `Público en general` el formulario/API lo requieren. Si se proporciona, debe ser válido y único (comparación sin distinguir mayúsculas). El tipo de usuario determina si corresponde guardar una universidad. Para `Trabajador Interno` y `Público en general`, el backend limpia ese campo.
+
+Al abrir una base existente, `Database.initialize()` añade `email TEXT NOT NULL DEFAULT ''` si la columna aún no existe, por lo que los registros anteriores conservan sus datos y reciben email vacío.
 
 ### `received_logins` — Logs de peticiones
 

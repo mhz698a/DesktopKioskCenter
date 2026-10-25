@@ -195,7 +195,7 @@ class UserRecordDialog(cQDlg):
                     )
                     self.inputs[key].setFocus()
                     return
-                if value and not re.fullmatch(r"[^@\\s]+@[^@\\s]+\\.[^@\\s]+", value):
+                if value and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", value):
                     cQMsgBox.warning(
                         self, "Validación", "Ingresa una dirección de email válida."
                     )

@@ -80,4 +80,4 @@ Para mantener compatibilidad con ambos ejemplos, `tipo-usuario = "estudiante"` s
 
 Las peticiones recibidas se guardan en `received_logins`, sin registrar contraseñas. Los accesos y registros permitidos se guardan en `access_logs`. La cabecera opcional `X-Kiosk-Name` identifica el kiosco en los logs; de lo contrario se usa `Cliente API`.
 
-Las solicitudes con acción incorrecta o campos inválidos reciben HTTP 400. El servicio escucha en todas las interfaces por defecto; restrinje el puerto con el firewall de Windows a las redes de clientes autorizados.
+Las solicitudes con acción incorrecta o campos inválidos reciben HTTP 400. El servicio escucha en todas las interfaces por defecto; restringe el puerto con el firewall de Windows a las redes de clientes autorizados.

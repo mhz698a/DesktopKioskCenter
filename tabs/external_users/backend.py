@@ -42,6 +42,9 @@ class ExternalUsersBackend(QObject):
             return
         try:
             new_id = self.database.add_external_user(dialog.get_record())
+        except sqlite3.IntegrityError:
+            cQMsgBox.warning(self.view, "Email duplicado", "Ya existe un usuario con ese email.")
+            return
         except (sqlite3.Error, OSError) as exc:
             cQMsgBox.critical(self.view, "Error de base de datos", f"No se pudo guardar el usuario en SQLite.\n\n{exc}")
             return
@@ -56,6 +59,9 @@ class ExternalUsersBackend(QObject):
             return
         try:
             updated = self.database.update_external_user(self._selected_id, self.view.editor_panel.get_record())
+        except sqlite3.IntegrityError:
+            cQMsgBox.warning(self.view, "Email duplicado", "Ya existe otro usuario con ese email.")
+            return
         except (sqlite3.Error, OSError) as exc:
             cQMsgBox.critical(self.view, "Error de base de datos", f"No se pudieron guardar los cambios.\n\n{exc}")
             return
