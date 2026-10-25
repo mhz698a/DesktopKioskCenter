@@ -10,6 +10,7 @@ bien y la revierte ante una excepción.
 """
 import json
 import logging
+import re
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
@@ -282,8 +283,19 @@ class Database:
             ).fetchall()
             return self._as_dicts(rows)
 
+    @staticmethod
+    def _validate_external_email(email) -> str:
+        """Valida que todo usuario externo tenga un email válido."""
+        email = str(email or "").strip()
+        if not email:
+            raise ValueError("El email es obligatorio para todos los usuarios externos.")
+        if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+            raise ValueError("La dirección de email no es válida.")
+        return email
+
     def add_external_user(self, record: dict) -> int:
-        """Inserta un registro de usuario general; universidad puede quedar vacía."""
+        """Inserta un usuario externo con email obligatorio."""
+        email = self._validate_external_email(record.get("email", ""))
         tipo_usuario = record["tipo_usuario"].strip()
         universidad = record.get("universidad", "").strip()
         if tipo_usuario != "Estudiante Externo":
@@ -300,7 +312,7 @@ class Database:
                 (
                     record["nombres"].strip(),
                     record["apellidos"].strip(),
-                    record.get("email", "").strip(),
+                    email,
                     tipo_usuario,
                     universidad,
                 ),
@@ -308,7 +320,8 @@ class Database:
             return int(cursor.lastrowid)
 
     def update_external_user(self, user_id: int, record: dict) -> bool:
-        """Actualiza un usuario; limpia universidad si no es estudiante externo."""
+        """Actualiza un usuario con email válido; limpia universidad si no aplica."""
+        email = self._validate_external_email(record.get("email", ""))
         tipo_usuario = record["tipo_usuario"].strip()
         universidad = record.get("universidad", "").strip()
         if tipo_usuario != "Estudiante Externo":
@@ -319,7 +332,7 @@ class Database:
                    SET nombres = ?, apellidos = ?, email = ?, tipo_usuario = ?, universidad = ?
                    WHERE id = ?""",
                 (record["nombres"].strip(), record["apellidos"].strip(),
-                 record.get("email", "").strip(), tipo_usuario, universidad, int(user_id)),
+                 email, tipo_usuario, universidad, int(user_id)),
             )
             return cursor.rowcount > 0
 
@@ -358,30 +371,14 @@ class Database:
             return dict(external) if external else None
 
     def external_user_exists(self, record: dict) -> bool:
-        """Busca duplicados por email o, sin email, por los campos de identidad."""
-        email = str(record.get("email", "") or "").strip()
+        """Comprueba duplicados por email, identificador obligatorio del usuario externo."""
+        email = self._validate_external_email(record.get("email", ""))
         with self.connection() as connection:
-            if email:
-                row = connection.execute(
-                    """SELECT 1 FROM external_users
-                       WHERE email <> '' AND email = ? COLLATE NOCASE LIMIT 1""",
-                    (email,),
-                ).fetchone()
-            else:
-                row = connection.execute(
-                    """SELECT 1 FROM external_users
-                       WHERE lower(nombres) = lower(?)
-                         AND lower(apellidos) = lower(?)
-                         AND tipo_usuario = ?
-                         AND lower(universidad) = lower(?)
-                       LIMIT 1""",
-                    (
-                        str(record.get("nombres", "")).strip(),
-                        str(record.get("apellidos", "")).strip(),
-                        str(record.get("tipo_usuario", "")).strip(),
-                        str(record.get("universidad", "")).strip(),
-                    ),
-                ).fetchone()
+            row = connection.execute(
+                """SELECT 1 FROM external_users
+                   WHERE email <> '' AND email = ? COLLATE NOCASE LIMIT 1""",
+                (email,),
+            ).fetchone()
             return row is not None
 
     def list_access_logs(self, limit: int | None = 1000) -> list[dict]:

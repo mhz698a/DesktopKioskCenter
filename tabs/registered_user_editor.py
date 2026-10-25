@@ -164,8 +164,8 @@ class RegisteredUserEditor(QWidget):
         if self.kind == "student" and not re.fullmatch(r"[0-9]+", record["expediente"]):
             return False, "El expediente debe contener únicamente números."
         if self.kind == "external":
-            if record.get("tipo_usuario") == "Público en general" and not record.get("email"):
-                return False, "El campo «Email» es obligatorio para Público en general."
+            if not record.get("email"):
+                return False, "El campo «Email» es obligatorio para todos los usuarios externos."
             if record.get("email") and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", record["email"]):
                 return False, "Ingresa una dirección de email válida."
             if record.get("tipo_usuario") == "Estudiante Externo" and not record.get("universidad"):

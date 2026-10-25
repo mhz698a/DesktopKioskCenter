@@ -63,13 +63,14 @@ class ApiTests(unittest.TestCase):
             "action": "registro_externo",
             "data": {
                 "nombres": "Ejemplo", "apellidos": "Prueba",
+                "email": "estudiante@example.com",
                 "tipo-usuario": "estudiante", "universidad-ext": "Universidad X",
             },
         })
         self.assertEqual(external_student.status_code, 201)
         saved = self.db.list_external_users()[0]
         self.assertEqual(saved["tipo_usuario"], "Estudiante Externo")
-        self.assertEqual(saved["email"], "")
+        self.assertEqual(saved["email"], "estudiante@example.com")
         duplicate_student = self.client.post("/api/v1/users/register/externo", json={
             "action": "registro_externo",
             "data": {
@@ -84,7 +85,7 @@ class ApiTests(unittest.TestCase):
             "action": "registro_externo",
             "data": {
                 "nombres": "Publico", "apellidos": "General",
-                "email": "publico@example.com", "tipo-usuario": "estudiante",
+                "email": "publico@example.com", "tipo-usuario": "Público en general",
             },
         })
         self.assertEqual(public_general.status_code, 201)
@@ -100,6 +101,29 @@ class ApiTests(unittest.TestCase):
         })
         self.assertEqual(duplicate_public.status_code, 409)
         self.assertFalse(duplicate_public.get_json()["unlocked"])
+
+    def test_external_registration_requires_email_for_all_user_types(self):
+        response = self.client.post("/api/v1/users/register/externo", json={
+            "action": "registro_externo",
+            "data": {
+                "nombres": "Trabajador", "apellidos": "Ejemplo",
+                "tipo-usuario": "Trabajador Interno",
+            },
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(response.get_json()["unlocked"])
+        self.assertIn("email", response.get_json()["message"].lower())
+
+        worker = self.client.post("/api/v1/users/register/externo", json={
+            "action": "registro_externo",
+            "data": {
+                "nombres": "Trabajador", "apellidos": "Ejemplo",
+                "email": "trabajador@example.com",
+                "tipo-usuario": "Trabajador Interno",
+            },
+        })
+        self.assertEqual(worker.status_code, 201)
+        self.assertEqual(self.db.list_external_users()[0]["email"], "trabajador@example.com")
 
     def test_invalid_action_returns_400_json(self):
         response = self.client.post("/api/v1/users/register/alumno", json={

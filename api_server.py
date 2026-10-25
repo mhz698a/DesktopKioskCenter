@@ -137,13 +137,13 @@ def create_api_app(database: Database) -> Flask:
             or not all(c.isalpha() or c == " " for c in surnames)
         ):
             return response(False, "Los nombres y apellidos son obligatorios y solo admiten letras y espacios.", 400)
-        if email and not EMAIL_RE.fullmatch(email):
+        if not email:
+            return response(False, "El campo «email» es obligatorio para todos los usuarios externos.", 400)
+        if not EMAIL_RE.fullmatch(email):
             return response(False, "Ingresa una dirección de email válida.", 400)
 
-        # Compatibilidad con los ejemplos: "estudiante" sin email representa
-        # Estudiante Externo y con email representa Público en general.
         if raw_type in ("estudiante", "estudiante externo", "estudiante_externo"):
-            user_type = "Público en general" if raw_type == "estudiante" and email else "Estudiante Externo"
+            user_type = "Estudiante Externo"
         elif raw_type in ("público en general", "publico en general", "publico_general", "publico", "general"):
             user_type = "Público en general"
         elif raw_type in ("trabajador interno", "trabajador_interno", "trabajador"):
@@ -151,8 +151,6 @@ def create_api_app(database: Database) -> Flask:
         else:
             return response(False, "El campo «tipo-usuario» no contiene un tipo reconocido.", 400)
 
-        if user_type == "Público en general" and not email:
-            return response(False, "El campo «email» es obligatorio para Público en general.", 400)
         if user_type == "Estudiante Externo" and not university:
             return response(False, "El campo «universidad-ext» es obligatorio para Estudiante Externo.", 400)
 
@@ -189,7 +187,7 @@ class ApiServer:
 
     def __init__(self, database: Database, host=None, port=None):
         self.host = host or os.environ.get("DESKTOPKIOSKCENTER_API_HOST", "0.0.0.0")
-        self.port = int(port if port is not None else os.environ.get("DESKTOPKIOSKCENTER_API_PORT", "8080"))
+        self.port = int(port if port is not None else os.environ.get("DESKTOPKIOSKCENTER_API_PORT", "7085"))
         self.app = create_api_app(database)
         self._server = None
         self._thread = None

@@ -2,7 +2,7 @@
 
 ## Ejecución
 
-El servidor REST se inicia junto con la aplicación. Por defecto escucha en `0.0.0.0:8080`; configura `DESKTOPKIOSKCENTER_API_HOST` o `DESKTOPKIOSKCENTER_API_PORT` para cambiarlo.
+El servidor REST se inicia junto con la aplicación. Por defecto escucha en `0.0.0.0:7085`; configura `DESKTOPKIOSKCENTER_API_HOST` o `DESKTOPKIOSKCENTER_API_PORT` para cambiarlo.
 
 ```http
 GET /api/v1/health
@@ -51,6 +51,7 @@ Estudiante externo:
   "data": {
     "nombres": "Ejemplo Example",
     "apellidos": "Prueba Testing",
+    "email": "estudiante@example.com",
     "tipo-usuario": "estudiante",
     "universidad-ext": "Universidad Tecnológica de Querétaro (UTEQ)"
   }
@@ -66,12 +67,12 @@ Público en general:
     "nombres": "Ejemplo",
     "apellidos": "Prueba",
     "email": "emailtest@example.com",
-    "tipo-usuario": "estudiante"
+    "tipo-usuario": "Público en general"
   }
 }
 ```
 
-Para mantener compatibilidad con ambos ejemplos, `tipo-usuario = "estudiante"` sin email representa `Estudiante Externo`, y con email representa `Público en general`. También se admiten nombres explícitos como `Público en general`, `publico_general`, `Estudiante Externo` y `Trabajador Interno`. Email es obligatorio para público en general y se valida si se proporciona; la universidad es obligatoria para estudiante externo.
+El campo `tipo-usuario` debe indicar el tipo real de usuario: `estudiante`/`Estudiante Externo`, `Trabajador Interno` o `Público en general`. **Email es obligatorio para los tres tipos externos**, debe tener un formato válido y no puede estar registrado previamente. La universidad es obligatoria para estudiantes externos y no aplica a trabajadores internos ni público en general.
 
 - Registro duplicado: HTTP 409, `unlocked: false` y el mensaje indicado.
 - Registro nuevo: HTTP 201, `unlocked: true` y `Registro de usuario completado con éxito.`.

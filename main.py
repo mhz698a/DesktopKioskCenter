@@ -41,7 +41,7 @@ def main():
             "No se pudo iniciar la base de datos o el servidor HTTP REST.\n\n"
             f"{exc}\n\n"
             "Verifique los permisos de AppData y que el puerto REST esté disponible. "
-            "El puerto predeterminado es 8080; puede cambiarlo con "
+            "El puerto predeterminado es 7085; puede cambiarlo con "
             "DESKTOPKIOSKCENTER_API_PORT.",
         )
         if api_server is not None:

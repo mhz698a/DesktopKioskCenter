@@ -77,11 +77,11 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(self.db.list_internal_students(), [])
 
         user_id = self.db.add_external_user({
-            "nombres": "Luis", "apellidos": "López",
+            "nombres": "Luis", "apellidos": "López", "email": "luis@example.com",
             "tipo_usuario": "Estudiante Externo", "universidad": "Universidad X",
         })
         self.assertTrue(self.db.update_external_user(user_id, {
-            "nombres": "Luis", "apellidos": "López",
+            "nombres": "Luis", "apellidos": "López", "email": "luis@example.com",
             "tipo_usuario": "Público en general", "universidad": "Universidad X",
         }))
         self.assertEqual(self.db.list_external_users()[0]["universidad"], "")
@@ -101,6 +101,18 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(totals["total"], 1)
         self.assertEqual(totals["by_type"][0]["label"], "Alumno interno")
         self.assertEqual(totals["by_kiosk"][0]["label"], "Kiosco A")
+
+    def test_external_user_requires_valid_email(self):
+        with self.assertRaises(ValueError):
+            self.db.add_external_user({
+                "nombres": "Ana", "apellidos": "Prueba",
+                "tipo_usuario": "Estudiante Externo", "universidad": "Universidad X",
+            })
+        with self.assertRaises(ValueError):
+            self.db.add_external_user({
+                "nombres": "Ana", "apellidos": "Prueba", "email": "no-es-email",
+                "tipo_usuario": "Estudiante Externo", "universidad": "Universidad X",
+            })
 
     def test_existing_database_schema_gains_email_column(self):
         old_path = self.root / "old-schema.sqlite3"

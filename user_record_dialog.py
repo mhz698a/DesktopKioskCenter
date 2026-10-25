@@ -182,16 +182,17 @@ class UserRecordDialog(cQDlg):
         return record
 
     def accept(self):
-        user_type = self._value(self.inputs.get("tipo_usuario"))
+        user_type_widget = self.inputs.get("tipo_usuario")
+        user_type = self._value(user_type_widget) if user_type_widget is not None else ""
         for key, label in self.fields:
             value = self._value(self.inputs[key])
 
             if key == "email":
-                # Email es opcional para estudiante externo, requerido para público general.
-                if not value and user_type == "Público en general":
+                # Email es obligatorio para cualquier tipo de usuario externo.
+                if not value:
                     cQMsgBox.warning(
                         self, "Validación",
-                        "El campo «Email» es obligatorio para Público en general.",
+                        "El campo «Email» es obligatorio para todos los usuarios externos.",
                     )
                     self.inputs[key].setFocus()
                     return

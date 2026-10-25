@@ -47,7 +47,7 @@ La estructura de tablas, la migración, las consultas de ejemplo y las instrucci
 - `POST /api/v1/users/register/alumno`
 - `POST /api/v1/users/register/externo`
 
-La API se inicia junto con la interfaz, por defecto en el puerto TCP 8080. El puerto se puede cambiar con `DESKTOPKIOSKCENTER_API_PORT`. Consulta [docs/API.md](docs/API.md) para ejemplos.
+La API se inicia junto con la interfaz, por defecto en el puerto TCP 7085. El puerto se puede cambiar con `DESKTOPKIOSKCENTER_API_PORT`. Consulta [docs/API.md](docs/API.md) para ejemplos.
 
 ## Seguridad y alcance
 
