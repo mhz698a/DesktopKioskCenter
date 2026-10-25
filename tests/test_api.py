@@ -58,6 +58,18 @@ class ApiTests(unittest.TestCase):
             "unlocked": True, "message": "Sesión iniciada correctamente."
         })
 
+        self.db.add_external_user({
+            "nombres": "Extern", "apellidos": "Example",
+            "email": "externo@example.com", "tipo_usuario": "Estudiante Externo",
+            "universidad": "Universidad X",
+        })
+        email_login = self.client.post("/api/v1/auth-client-pc/login", json={
+            "action": "unlock_login",
+            "data": {"usuario": "EXTERNO@example.com", "contrasena": "cualquier-valor"},
+        })
+        self.assertEqual(email_login.status_code, 200)
+        self.assertTrue(email_login.get_json()["unlocked"])
+
     def test_external_student_and_public_general_registration(self):
         external_student = self.client.post("/api/v1/users/register/externo", json={
             "action": "registro_externo",
@@ -75,6 +87,7 @@ class ApiTests(unittest.TestCase):
             "action": "registro_externo",
             "data": {
                 "nombres": "Ejemplo", "apellidos": "Prueba",
+                "email": "estudiante@example.com",
                 "tipo-usuario": "estudiante", "universidad-ext": "Universidad X",
             },
         })
@@ -96,7 +109,7 @@ class ApiTests(unittest.TestCase):
             "action": "registro_externo",
             "data": {
                 "nombres": "Publico", "apellidos": "General",
-                "email": "publico@example.com", "tipo-usuario": "estudiante",
+                "email": "publico@example.com", "tipo-usuario": "Público en general",
             },
         })
         self.assertEqual(duplicate_public.status_code, 409)

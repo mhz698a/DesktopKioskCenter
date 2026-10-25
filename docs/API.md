@@ -19,7 +19,7 @@ Todas las rutas POST reciben JSON. Las respuestas de las rutas funcionales conti
 }
 ```
 
-El identificador se busca como expediente de alumno interno o como email de usuario externo. Si no existe, responde HTTP 401 con el mensaje solicitado. Si existe, responde HTTP 200 con `unlocked: true`.
+El campo `data.usuario` puede ser el expediente de un alumno interno o el email de un usuario externo. La búsqueda de email ignora mayúsculas/minúsculas. Si no existe, responde HTTP 401 con el mensaje solicitado. Si existe, responde HTTP 200 con `unlocked: true`.
 
 **Limitación importante:** los payloads de registro de esta especificación no contienen contraseña y SQLite no almacena credenciales. Actualmente la ruta comprueba que el usuario esté registrado y exige que el campo `contrasena` esté presente, pero no verifica que su valor sea correcto. Para utilizar el endpoint como autenticación segura, se necesita definir cómo registrar/verificar credenciales y almacenar hashes de contraseña. La contraseña nunca se incluye en logs.
 
