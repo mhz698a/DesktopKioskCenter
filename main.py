@@ -9,6 +9,7 @@ from PyQt6.QtGui import QIcon
 
 from css.cQDialogs import cQMsgBox
 from database import Database
+from api_server import ApiServer
 from wmain import MainWindow
 
 
@@ -26,22 +27,33 @@ def main():
     app.setApplicationName("DesktopKioskCenter")
     app.setWindowIcon(QIcon(ICON_PATH))
 
+    api_server = None
     try:
         database = Database()
         database.initialize()
         window = MainWindow(database=database)
-    except (OSError, sqlite3.Error) as exc:
+        api_server = ApiServer(database)
+        api_server.start()
+    except (OSError, ValueError, sqlite3.Error) as exc:
         cQMsgBox.critical(
             None,
-            "Error de almacenamiento",
-            "No se pudo preparar el almacenamiento en AppData.\n\n"
-            f"{exc}\n\n"
-            "Revise los permisos de la carpeta de datos del usuario.",
+            "Error al iniciar DesktopKioskCenter",
+            "No se pudo iniciar la base de datos o el servidor HTTP REST.\\n\\n"
+            f"{exc}\\n\\n"
+            "Verifique los permisos de AppData y que el puerto REST esté disponible. "
+            "El puerto predeterminado es 8080; puede cambiarlo con "
+            "DESKTOPKIOSKCENTER_API_PORT.",
         )
+        if api_server is not None:
+            api_server.stop()
         return 1
 
     window.show()
-    return app.exec()
+    try:
+        return app.exec()
+    finally:
+        if api_server is not None:
+            api_server.stop()
 
 
 if __name__ == "__main__":

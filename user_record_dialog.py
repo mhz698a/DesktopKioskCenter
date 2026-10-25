@@ -182,21 +182,33 @@ class UserRecordDialog(cQDlg):
         return record
 
     def accept(self):
+        user_type = self._value(self.inputs.get("tipo_usuario"))
         for key, label in self.fields:
             value = self._value(self.inputs[key])
 
-            # La universidad solo es obligatoria para estudiantes externos.
-            if (
-                key == "universidad"
-                and self._value(self.inputs.get("tipo_usuario")) != "Estudiante Externo"
-            ):
+            if key == "email":
+                # Email es opcional para estudiante externo, requerido para público general.
+                if not value and user_type == "Público en general":
+                    cQMsgBox.warning(
+                        self, "Validación",
+                        "El campo «Email» es obligatorio para Público en general.",
+                    )
+                    self.inputs[key].setFocus()
+                    return
+                if value and not re.fullmatch(r"[^@\\s]+@[^@\\s]+\\.[^@\\s]+", value):
+                    cQMsgBox.warning(
+                        self, "Validación", "Ingresa una dirección de email válida."
+                    )
+                    self.inputs[key].setFocus()
+                    return
+                continue
+
+            if key == "universidad" and user_type != "Estudiante Externo":
                 continue
 
             if not value:
                 cQMsgBox.warning(
-                    self,
-                    "Validación",
-                    f"El campo «{label}» es obligatorio.",
+                    self, "Validación", f"El campo «{label}» es obligatorio."
                 )
                 self.inputs[key].setFocus()
                 return
@@ -204,8 +216,7 @@ class UserRecordDialog(cQDlg):
             if key in ("nombres", "apellidos"):
                 if not all(character.isalpha() or character == " " for character in value):
                     cQMsgBox.warning(
-                        self,
-                        "Validación",
+                        self, "Validación",
                         f"El campo «{label}» solo permite letras y espacios.",
                     )
                     self.inputs[key].setFocus()
@@ -213,8 +224,7 @@ class UserRecordDialog(cQDlg):
 
             if key == "expediente" and not re.fullmatch(r"[0-9]+", value):
                 cQMsgBox.warning(
-                    self,
-                    "Validación",
+                    self, "Validación",
                     "El expediente debe contener únicamente números.",
                 )
                 self.inputs[key].setFocus()

@@ -40,11 +40,13 @@ class DatabaseTests(unittest.TestCase):
         self.db.add_external_user({
             "nombres": "Luis",
             "apellidos": "López",
+            "email": "luis@example.com",
             "tipo_usuario": "Público en general",
             "universidad": "Universidad de ejemplo",
         })
         saved = self.db.list_external_users()[0]
         self.assertEqual(saved["universidad"], "")
+        self.assertEqual(saved["email"], "luis@example.com")
 
     def test_received_login_can_be_listed_and_counted(self):
         self.db.record_received_login(
@@ -99,6 +101,26 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(totals["total"], 1)
         self.assertEqual(totals["by_type"][0]["label"], "Alumno interno")
         self.assertEqual(totals["by_kiosk"][0]["label"], "Kiosco A")
+
+    def test_existing_database_schema_gains_email_column(self):
+        old_path = self.root / "old-schema.sqlite3"
+        import sqlite3
+        with sqlite3.connect(old_path) as connection:
+            connection.execute("""
+                CREATE TABLE external_users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    nombres TEXT NOT NULL,
+                    apellidos TEXT NOT NULL,
+                    tipo_usuario TEXT NOT NULL,
+                    universidad TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+                )
+            """)
+        upgraded = Database(old_path, self.legacy_dir)
+        upgraded.initialize()
+        with upgraded.connection() as connection:
+            columns = {row["name"] for row in connection.execute("PRAGMA table_info(external_users)")}
+        self.assertIn("email", columns)
 
     def test_legacy_json_is_imported_once(self):
         student_file = self.legacy_dir / "internal_students.json"

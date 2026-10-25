@@ -21,8 +21,8 @@ class ExternalUsersTab(QWidget):
         add_action.triggered.connect(lambda _checked=False: self.add_requested.emit())
 
         splitter = QSplitter(Qt.Orientation.Horizontal, self)
-        self.table = cQTableW(0, 5, splitter)
-        self.table.setHorizontalHeaderLabels(["Índice", "Nombres", "Apellidos", "Tipo de usuario", "Universidad"])
+        self.table = cQTableW(0, 6, splitter)
+        self.table.setHorizontalHeaderLabels(["Índice", "Nombres", "Apellidos", "Email", "Tipo de usuario", "Universidad"])
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -59,7 +59,7 @@ class ExternalUsersTab(QWidget):
             item = QTableWidgetItem(str(row + 1))
             item.setData(Qt.ItemDataRole.UserRole, int(record["id"]))
             self.table.setItem(row, 0, item)
-            for column, key in enumerate(("nombres", "apellidos", "tipo_usuario", "universidad"), start=1):
+            for column, key in enumerate(("nombres", "apellidos", "email", "tipo_usuario", "universidad"), start=1):
                 self.table.setItem(row, column, QTableWidgetItem(str(record.get(key, "") or "")))
             if selected_id is not None and int(record["id"]) == int(selected_id):
                 selected_row = row

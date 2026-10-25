@@ -7,7 +7,7 @@ from css.cQDialogs import cQMsgBox
 from database import Database
 from user_record_dialog import UserRecordDialog
 
-FIELDS = [("nombres", "Nombres"), ("apellidos", "Apellidos"), ("tipo_usuario", "Tipo de usuario"), ("universidad", "Universidad Perteneciente")]
+FIELDS = [("nombres", "Nombres"), ("apellidos", "Apellidos"), ("email", "Email"), ("tipo_usuario", "Tipo de usuario"), ("universidad", "Universidad Perteneciente")]
 
 
 class ExternalUsersBackend(QObject):

@@ -25,7 +25,7 @@ class RegisteredUserEditor(QWidget):
              ("facultad", "Facultad"), ("expediente", "Expediente")]
             if kind == "student" else
             [("nombres", "Nombres"), ("apellidos", "Apellidos"),
-             ("tipo_usuario", "Tipo de usuario"),
+             ("email", "Email"), ("tipo_usuario", "Tipo de usuario"),
              ("universidad", "Universidad")]
         )
         form = QFormLayout()
@@ -163,6 +163,11 @@ class RegisteredUserEditor(QWidget):
                 return False, f"El campo «{label}» solo permite letras y espacios."
         if self.kind == "student" and not re.fullmatch(r"[0-9]+", record["expediente"]):
             return False, "El expediente debe contener únicamente números."
-        if self.kind == "external" and record.get("tipo_usuario") == "Estudiante Externo" and not record.get("universidad"):
-            return False, "Selecciona la universidad del estudiante externo."
+        if self.kind == "external":
+            if record.get("tipo_usuario") == "Público en general" and not record.get("email"):
+                return False, "El campo «Email» es obligatorio para Público en general."
+            if record.get("email") and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", record["email"]):
+                return False, "Ingresa una dirección de email válida."
+            if record.get("tipo_usuario") == "Estudiante Externo" and not record.get("universidad"):
+                return False, "Selecciona la universidad del estudiante externo."
         return True, ""

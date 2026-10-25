@@ -27,7 +27,7 @@ En Windows, la configuración y la base de datos viven en:
 ```
 
 - `kiosks.json`: equipos, host/IP y puerto.
-- `desktopkioskcenter.sqlite3`: alumnos internos, usuarios externos/público general e inicios recibidos.
+- `desktopkioskcenter.sqlite3`: alumnos internos, usuarios externos/público general y logs de peticiones/accesos.
 
 La nueva versión importa, en su primer inicio, los registros heredados de `internal_students.json` y `external_users.json` si existen junto al programa. Los archivos antiguos no se eliminan automáticamente.
 
@@ -37,8 +37,17 @@ La estructura de tablas, la migración, las consultas de ejemplo y las instrucci
 
 - **Equipos**: administra kioscos y los consulta cada pocos segundos.
 - **Alumnos Internos Registrados**: guarda nombres, apellidos, facultad y expediente.
-- **Usuarios Externos Registrados**: guarda nombre, apellidos, tipo de usuario y, cuando corresponda, universidad.
-- **Inicios Recibidos**: consulta los eventos guardados en SQLite y permite contar totales por tipo y resultado. La tabla recibe eventos cuando un backend de autenticación invoque `Database.record_received_login(...)`.
+- **Usuarios Externos Registrados**: guarda nombres, apellidos, email, tipo de usuario y, cuando corresponda, universidad.
+- **Logs de peticiones**: consulta solicitudes REST recibidas y permite contar totales por tipo y resultado.
+- **Logs de accesos**: consulta accesos permitidos y permite contar totales por tipo de usuario y equipo.
+
+## API REST
+
+- `POST /api/v1/auth-client-pc/login`
+- `POST /api/v1/users/register/alumno`
+- `POST /api/v1/users/register/externo`
+
+La API se inicia junto con la interfaz, por defecto en el puerto TCP 8080. El puerto se puede cambiar con `DESKTOPKIOSKCENTER_API_PORT`. Consulta [docs/API.md](docs/API.md) para ejemplos.
 
 ## Seguridad y alcance
 

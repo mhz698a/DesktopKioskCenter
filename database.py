@@ -67,6 +67,7 @@ class Database:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     nombres TEXT NOT NULL,
                     apellidos TEXT NOT NULL,
+                    email TEXT NOT NULL DEFAULT '',
                     tipo_usuario TEXT NOT NULL,
                     universidad TEXT NOT NULL DEFAULT '',
                     created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
@@ -107,6 +108,21 @@ class Database:
                     applied_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
                 );
                 """
+            )
+
+            # Migración incremental para bases de datos anteriores al campo Email.
+            external_columns = {
+                row["name"]
+                for row in connection.execute("PRAGMA table_info(external_users)")
+            }
+            if "email" not in external_columns:
+                connection.execute(
+                    "ALTER TABLE external_users ADD COLUMN email TEXT NOT NULL DEFAULT ''"
+                )
+            connection.execute(
+                """CREATE UNIQUE INDEX IF NOT EXISTS idx_external_users_email_unique
+                   ON external_users(email COLLATE NOCASE)
+                   WHERE TRIM(email) <> ''"""
             )
 
         self._migrate_legacy_json()
@@ -259,7 +275,7 @@ class Database:
         with self.connection() as connection:
             rows = connection.execute(
                 """
-                SELECT id, nombres, apellidos, tipo_usuario, universidad, created_at
+                SELECT id, nombres, apellidos, email, tipo_usuario, universidad, created_at
                 FROM external_users
                 ORDER BY id
                 """
@@ -278,12 +294,13 @@ class Database:
             cursor = connection.execute(
                 """
                 INSERT INTO external_users
-                    (nombres, apellidos, tipo_usuario, universidad)
-                VALUES (?, ?, ?, ?)
+                    (nombres, apellidos, email, tipo_usuario, universidad)
+                VALUES (?, ?, ?, ?, ?)
                 """,
                 (
                     record["nombres"].strip(),
                     record["apellidos"].strip(),
+                    record.get("email", "").strip(),
                     tipo_usuario,
                     universidad,
                 ),
@@ -299,10 +316,10 @@ class Database:
         with self.connection() as connection:
             cursor = connection.execute(
                 """UPDATE external_users
-                   SET nombres = ?, apellidos = ?, tipo_usuario = ?, universidad = ?
+                   SET nombres = ?, apellidos = ?, email = ?, tipo_usuario = ?, universidad = ?
                    WHERE id = ?""",
                 (record["nombres"].strip(), record["apellidos"].strip(),
-                 tipo_usuario, universidad, int(user_id)),
+                 record.get("email", "").strip(), tipo_usuario, universidad, int(user_id)),
             )
             return cursor.rowcount > 0
 
@@ -313,6 +330,59 @@ class Database:
                 "DELETE FROM external_users WHERE id = ?", (int(user_id),)
             )
             return cursor.rowcount > 0
+
+    def find_registered_user(self, identifier: str) -> dict | None:
+        """Busca un alumno por expediente o un usuario externo por email.
+
+        El contrato actual solicita comprobar el registro. No se verifica
+        contraseña porque los payloads de registro no definen credenciales.
+        """
+        identifier = identifier.strip()
+        with self.connection() as connection:
+            student = connection.execute(
+                """SELECT id, nombres, apellidos, facultad, expediente,
+                          '' AS email, '' AS universidad,
+                          'Alumno interno' AS tipo_usuario
+                   FROM internal_students WHERE expediente = ?""",
+                (identifier,),
+            ).fetchone()
+            if student:
+                return dict(student)
+            external = connection.execute(
+                """SELECT id, nombres, apellidos, '' AS facultad, '' AS expediente,
+                          email, universidad, tipo_usuario
+                   FROM external_users
+                   WHERE email <> '' AND email = ? COLLATE NOCASE""",
+                (identifier,),
+            ).fetchone()
+            return dict(external) if external else None
+
+    def external_user_exists(self, record: dict) -> bool:
+        """Busca duplicados por email o, sin email, por los campos de identidad."""
+        email = str(record.get("email", "") or "").strip()
+        with self.connection() as connection:
+            if email:
+                row = connection.execute(
+                    """SELECT 1 FROM external_users
+                       WHERE email <> '' AND email = ? COLLATE NOCASE LIMIT 1""",
+                    (email,),
+                ).fetchone()
+            else:
+                row = connection.execute(
+                    """SELECT 1 FROM external_users
+                       WHERE lower(nombres) = lower(?)
+                         AND lower(apellidos) = lower(?)
+                         AND tipo_usuario = ?
+                         AND lower(universidad) = lower(?)
+                       LIMIT 1""",
+                    (
+                        str(record.get("nombres", "")).strip(),
+                        str(record.get("apellidos", "")).strip(),
+                        str(record.get("tipo_usuario", "")).strip(),
+                        str(record.get("universidad", "")).strip(),
+                    ),
+                ).fetchone()
+            return row is not None
 
     def list_access_logs(self, limit: int | None = 1000) -> list[dict]:
         """Lista los eventos de acceso más recientes."""
