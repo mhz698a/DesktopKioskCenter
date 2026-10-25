@@ -22,7 +22,7 @@ class MainWindow(QMainWindow):
     def __init__(self, database: Database | None = None):
         super().__init__()
         self.setWindowTitle("DesktopKioskCenter")
-        self.resize(1350, 760)
+        self.resize(1100, 620)
         self._closing = False
 
         if platform.system() == "Windows":
