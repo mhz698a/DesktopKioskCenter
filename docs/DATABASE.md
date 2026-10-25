@@ -9,7 +9,7 @@ En Windows, los datos persistentes se guardan en:
 En esa carpeta se encuentran:
 
 - `kiosks.json`: configuración de los equipos administrados.
-- `desktopkioskcenter.sqlite3`: base de datos SQLite de alumnos, usuarios y eventos recibidos.
+- `desktopkioskcenter.sqlite3`: base de datos SQLite de alumnos, usuarios, logs de peticiones y logs de accesos.
 
 El código de la aplicación y sus estilos siguen en el directorio de instalación. En otros sistemas, la aplicación respeta `XDG_DATA_HOME` o utiliza `~/.local/share/DesktopKioskCenter`.
 
@@ -41,11 +41,17 @@ Si una fila de alumno tiene un expediente que ya existe, la restricción UNIQUE 
 
 Contiene `id`, `nombres`, `apellidos`, `tipo_usuario`, `universidad` y `created_at`. El tipo de usuario determina si corresponde guardar una universidad. Para `Trabajador Interno` y `Público en general`, el backend limpia ese campo.
 
-### `received_logins`
+### `received_logins` — Logs de peticiones
 
-Almacena un evento por solicitud que procese el futuro backend central. Incluye fecha y hora, equipo, IP cliente, identificador, tipo de usuario, acción, resultado y mensaje. La pestaña **Inicios Recibidos** lee esta tabla y **Contar Totales** hace conteos SQL por total, tipo de usuario y resultado.
+Almacena un evento por solicitud que procese el futuro backend central. Incluye fecha y hora, equipo, IP cliente, identificador, tipo de usuario, acción, resultado y mensaje. La pestaña **Logs de peticiones** lee esta tabla y **Contar Totales** hace conteos SQL por total, tipo de usuario y resultado.
 
 La tabla puede estar vacía hasta que un backend de autenticación invoque `Database.record_received_login(...)`. La interfaz no inventa eventos de prueba.
+
+### `access_logs` — Logs de accesos
+
+Guarda un evento de acceso con fecha y hora, equipo, nombres, apellidos, expediente, facultad, universidad externa y tipo de usuario. La pestaña **Logs de accesos** muestra esas nueve columnas y su opción **Contar totales** consulta el total, los subtotales por tipo de usuario y los subtotales por equipo. El método `Database.record_access_log(...)` permite que el servicio de autenticación inserte un acceso procesado. La tabla permanece vacía hasta que esa integración invoque el método.
+
+Las pestañas **Alumnos Internos Registrados** y **Usuarios Externos Registrados** disponen de un panel lateral para editar el registro seleccionado. Los cambios se guardan mediante los métodos `update_...`; las acciones de eliminación usan `delete_...` y solicitan confirmación. **Revertir Cambios** restaura los valores de la selección actual.
 
 ### `schema_migrations`
 
@@ -59,6 +65,8 @@ Todo el acceso SQL está centralizado en el archivo raíz `database.py`:
 - `Database.connection()`: abre una conexión por operación, activa claves foráneas y timeout de espera, confirma al terminar o revierte si hay una excepción, y siempre cierra la conexión.
 - `list_...`: lee filas y las convierte en diccionarios para la interfaz.
 - `add_...`: inserta datos mediante parámetros SQL (`?`), no concatenando texto de los formularios.
+- `update_...` y `delete_...`: guardan o eliminan los registros seleccionados en las tablas de alumnos y usuarios.
+- `record_access_log(...)`: añade un evento de acceso; `count_access_logs()` calcula los totales directamente en SQLite.
 - `record_received_login(...)`: permite que la futura API central registre una solicitud recibida.
 - `count_received_logins()`: hace el conteo directamente en SQLite.
 

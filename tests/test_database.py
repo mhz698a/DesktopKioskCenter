@@ -61,6 +61,45 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(totals["total"], 1)
         self.assertEqual(totals["by_result"][0]["label"], "autorizado")
 
+    def test_student_and_external_user_can_be_updated_and_deleted(self):
+        student_id = self.db.add_internal_student({
+            "nombres": "Ana", "apellidos": "Pérez",
+            "facultad": "Facultad de Artes", "expediente": "123",
+        })
+        self.assertTrue(self.db.update_internal_student(student_id, {
+            "nombres": "María", "apellidos": "Pérez",
+            "facultad": "Facultad de Derecho", "expediente": "456",
+        }))
+        self.assertEqual(self.db.list_internal_students()[0]["expediente"], "456")
+        self.assertTrue(self.db.delete_internal_student(student_id))
+        self.assertEqual(self.db.list_internal_students(), [])
+
+        user_id = self.db.add_external_user({
+            "nombres": "Luis", "apellidos": "López",
+            "tipo_usuario": "Estudiante Externo", "universidad": "Universidad X",
+        })
+        self.assertTrue(self.db.update_external_user(user_id, {
+            "nombres": "Luis", "apellidos": "López",
+            "tipo_usuario": "Público en general", "universidad": "Universidad X",
+        }))
+        self.assertEqual(self.db.list_external_users()[0]["universidad"], "")
+        self.assertTrue(self.db.delete_external_user(user_id))
+        self.assertEqual(self.db.list_external_users(), [])
+
+    def test_access_logs_can_be_listed_and_counted(self):
+        self.db.record_access_log(
+            kiosk_name="Kiosco A", nombres="Ana", apellidos="Pérez",
+            expediente="12345", facultad="Facultad de Artes",
+            universidad_externa="", tipo_usuario="Alumno interno",
+        )
+        records = self.db.list_access_logs()
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]["kiosk_name"], "Kiosco A")
+        totals = self.db.count_access_logs()
+        self.assertEqual(totals["total"], 1)
+        self.assertEqual(totals["by_type"][0]["label"], "Alumno interno")
+        self.assertEqual(totals["by_kiosk"][0]["label"], "Kiosco A")
+
     def test_legacy_json_is_imported_once(self):
         student_file = self.legacy_dir / "internal_students.json"
         student_file.write_text(
