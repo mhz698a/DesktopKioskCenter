@@ -1,15 +1,43 @@
+"""Rutas y modelos compartidos de DesktopKioskCenter.
+
+Los recursos visuales siguen junto al programa; los datos de usuario se guardan
+en APP_DATA_DIR para que no dependan del directorio de instalación.
+"""
+import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 
 if getattr(sys, "frozen", False):
-    BASE_DIR = Path(sys.executable).parent
+    # Directorio del ejecutable: se usa para recursos y migrar datos de versiones previas.
+    BASE_DIR = Path(sys.executable).resolve().parent
 else:
-    BASE_DIR = Path(__file__).parent
+    BASE_DIR = Path(__file__).resolve().parent
 
-DATA_FILE = BASE_DIR / "kiosks.json"
+
+def _get_roaming_data_root() -> Path:
+    """Devuelve el directorio de datos del usuario para el sistema operativo actual."""
+    if os.name == "nt":
+        # En Windows se usa %APPDATA%; la alternativa cubre entornos sin esa variable.
+        root = os.environ.get("APPDATA")
+        return Path(root) if root else Path.home() / "AppData" / "Roaming"
+
+    # Para desarrollo en otros sistemas se respeta XDG_DATA_HOME.
+    root = os.environ.get("XDG_DATA_HOME")
+    return Path(root) if root else Path.home() / ".local" / "share"
+
+
+APP_DATA_DIR = _get_roaming_data_root() / "DesktopKioskCenter"
+DATA_FILE = APP_DATA_DIR / "kiosks.json"
+DATABASE_FILE = APP_DATA_DIR / "desktopkioskcenter.sqlite3"
 DEFAULT_TOKEN = "UAQinformatizacion7085"
+
+
+def ensure_app_data_dir() -> Path:
+    """Crea el directorio de datos si no existe y devuelve su ruta."""
+    APP_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    return APP_DATA_DIR
 
 
 @dataclass

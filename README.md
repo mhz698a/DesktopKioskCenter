@@ -1,19 +1,10 @@
-# DesktopKioskCenter — MVP
+# DesktopKioskCenter
 
-Gestor central en PyQt6 para administrar equipos que ejecutan un cliente Kiosk local basado en Flask.
+Aplicación de escritorio PyQt6 para administrar clientes DesktopKiosk. La interfaz está organizada por pestañas; la persistencia de usuarios usa SQLite y la configuración de equipos usa JSON en AppData.
 
-## Componentes
+## Ejecución
 
-- `client/kiosk_client.py`: cliente Kiosk. Expone:
-  - `POST /api/kiosk/lock`
-  - `POST /api/kiosk/unlock`
-  - `POST /api/kiosk/close`
-  - `GET /api/kiosk/status`
-- `manager/main.py`: aplicación PyQt6 para administrar equipos.
-- `manager/kiosks.json`: persistencia de equipos del MVP.
-- Autenticación mediante `Authorization: Bearer <TOKEN>`.
-
-## Instalación
+Instala las dependencias del proyecto:
 
 ```bash
 python -m venv .venv
@@ -21,79 +12,36 @@ python -m venv .venv
 
 Windows:
 
-```bash
+```powershell
 .venv\Scripts\activate
-```
-
-Linux/macOS:
-
-```bash
-source .venv/bin/activate
-```
-
-Instalar dependencias:
-
-```bash
 pip install -r requirements.txt
+python main.py
 ```
 
-## Ejecutar un Kiosk cliente
+## Datos persistentes
 
-Windows:
+En Windows, la configuración y la base de datos viven en:
 
-```powershell
-$env:DESKTOPKIOSK_API_TOKEN="cambia-este-token"
-python client/kiosk_client.py
+```text
+%APPDATA%\DesktopKioskCenter\
 ```
 
-Linux/macOS:
+- `kiosks.json`: equipos, host/IP y puerto.
+- `desktopkioskcenter.sqlite3`: alumnos internos, usuarios externos/público general e inicios recibidos.
 
-```bash
-export DESKTOPKIOSK_API_TOKEN="cambia-este-token"
-python client/kiosk_client.py
-```
+La nueva versión importa, en su primer inicio, los registros heredados de `internal_students.json` y `external_users.json` si existen junto al programa. Los archivos antiguos no se eliminan automáticamente.
 
-Por defecto escucha en `0.0.0.0:7085`.
+La estructura de tablas, la migración, las consultas de ejemplo y las instrucciones de mantenimiento están documentadas en [docs/DATABASE.md](docs/DATABASE.md). El acceso a SQLite se encuentra centralizado en `database.py`; los módulos `tabs/*/build.py` presentan widgets y los módulos `tabs/*/backend.py` conectan la interfaz con la base de datos.
 
-## Ejecutar el gestor
+## Pestañas
 
-Windows:
+- **Equipos**: administra kioscos y los consulta cada pocos segundos.
+- **Alumnos Internos Registrados**: guarda nombres, apellidos, facultad y expediente.
+- **Usuarios Externos Registrados**: guarda nombre, apellidos, tipo de usuario y, cuando corresponda, universidad.
+- **Inicios Recibidos**: consulta los eventos guardados en SQLite y permite contar totales por tipo y resultado. La tabla recibe eventos cuando un backend de autenticación invoque `Database.record_received_login(...)`.
 
-```powershell
-$env:DESKTOPKIOSK_API_TOKEN="cambia-este-token"
-python manager/main.py
-```
+## Seguridad y alcance
 
-Linux/macOS:
+El token común de los clientes sigue siendo `UAQinformatizacion7085`. Al tratarse de un valor compartido e incluido en los ejecutables, no debe considerarse un secreto fuerte; limita el acceso al puerto del cliente mediante el firewall y una red administrativa autorizada.
 
-```bash
-export DESKTOPKIOSK_API_TOKEN="cambia-este-token"
-python manager/main.py
-```
-
-El gestor también permite introducir un token diferente por equipo desde «Agregar equipo» o «Editar».
-
-## Prueba manual de API
-
-```bash
-curl -X POST http://127.0.0.1:7085/api/kiosk/lock \
-  -H "Authorization: Bearer cambia-este-token"
-```
-
-Estado:
-
-```bash
-curl http://127.0.0.1:7085/api/kiosk/status \
-  -H "Authorization: Bearer cambia-este-token"
-```
-
-Desbloqueo:
-
-```bash
-curl -X POST http://127.0.0.1:7085/api/kiosk/unlock \
-  -H "Authorization: Bearer cambia-este-token"
-```
-
-## Nota de seguridad
-
-Este MVP implementa el bloqueo como una ventana de pantalla completa del propio Kiosk. No intenta saltarse la autenticación del sistema operativo para «desbloquear» Windows, Linux o macOS. Para un producto real, el acceso remoto debe ir sobre TLS/VPN o una red administrativa aislada, con tokens rotatorios y registro de auditoría.
+La integración del backend central de autenticación con DesktopKiosk se realizará como una fase separada.

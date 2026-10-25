@@ -1,39 +1,41 @@
 import ipaddress
 import socket
 import platform
+
 import pywinstyles
-
 from PyQt6.QtCore import QDate, QTime, QTimer, QThreadPool, Qt
-from PyQt6.QtWidgets import (
-    QHBoxLayout,
-    QLabel,
-    QMainWindow,
-    QTabWidget,
-    QVBoxLayout,
-    QWidget,
-)
+from PyQt6.QtWidgets import QHBoxLayout, QLabel, QMainWindow, QTabWidget, QVBoxLayout, QWidget
 
+from css.apply_qss import apply_css_sheet
+from database import Database
 from tabs.equipment.backend import EquipmentBackend
 from tabs.equipment.build import EquipmentTab
 from tabs.external_users.backend import ExternalUsersBackend
 from tabs.external_users.build import ExternalUsersTab
 from tabs.internal_students.backend import InternalStudentsBackend
 from tabs.internal_students.build import InternalStudentsTab
+from tabs.received_logins.backend import ReceivedLoginsBackend
+from tabs.received_logins.build import ReceivedLoginsTab
 
-from css.apply_qss import apply_css_sheet
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, database: Database | None = None):
         super().__init__()
         self.setWindowTitle("DesktopKioskCenter")
-        self.resize(1250, 720)
+        self.resize(1350, 760)
         self._closing = False
+
         if platform.system() == "Windows":
             pywinstyles.apply_style(self, "dark")
-        
+
+        self.database = database or Database()
+        # initialize() es idempotente; garantiza que las tablas existan si la ventana
+        # se inicia directamente desde una prueba o desde otro punto de entrada.
+        self.database.initialize()
+
         self.threadpool = QThreadPool(self)
         self.threadpool.setMaxThreadCount(8)
-        
+
         root = QWidget(self)
         root.setObjectName("RootMain")
         root_layout = QVBoxLayout(root)
@@ -70,9 +72,9 @@ class MainWindow(QMainWindow):
         self.equipment_tab = EquipmentTab(self.tabs)
         self.internal_students_tab = InternalStudentsTab(self.tabs)
         self.external_users_tab = ExternalUsersTab(self.tabs)
-        
+        self.received_logins_tab = ReceivedLoginsTab(self.tabs)
+
         self.tabs.setStyleSheet(apply_css_sheet("css/qtabwidget.css"))
-        
         self.tabs.addTab(self.equipment_tab, "Equipos")
         self.tabs.addTab(
             self.internal_students_tab, "Alumnos Internos Registrados"
@@ -80,21 +82,24 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(
             self.external_users_tab, "Usuarios Externos Registrados"
         )
+        self.tabs.addTab(self.received_logins_tab, "Inicios Recibidos")
 
         self.equipment_backend = EquipmentBackend(
             self.equipment_tab, self.threadpool, self
         )
         self.internal_students_backend = InternalStudentsBackend(
-            self.internal_students_tab, self
+            self.internal_students_tab, self.database, self
         )
         self.external_users_backend = ExternalUsersBackend(
-            self.external_users_tab, self
+            self.external_users_tab, self.database, self
+        )
+        self.received_logins_backend = ReceivedLoginsBackend(
+            self.received_logins_tab, self.database, self
         )
 
         root_layout.addWidget(header)
         root_layout.addWidget(self.tabs, 1)
         self.setCentralWidget(root)
-
         self.setStyleSheet(apply_css_sheet("css/qmainwin.css"))
 
         self.clock_timer = QTimer(self)
@@ -114,7 +119,7 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def detect_server_ip():
-        # Elegir la IP local que usaría el sistema para enrutar tráfico IPv4.
+        """Detecta la IP local preferida para enrutar tráfico IPv4."""
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
                 probe.connect(("192.0.2.1", 80))

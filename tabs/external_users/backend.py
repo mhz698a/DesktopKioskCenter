@@ -1,12 +1,14 @@
-from PyQt6.QtWidgets import QDialog
+"""Backend de usuarios externos y público en general: SQLite + presentación."""
+import sqlite3
+
 from PyQt6.QtCore import QObject
+from PyQt6.QtWidgets import QDialog
 
-from const import BASE_DIR
-from record_storage import load_records, save_records
-from user_record_dialog import UserRecordDialog
 from css.cQDialogs import cQMsgBox
+from database import Database
+from user_record_dialog import UserRecordDialog
 
-RECORD_FILE = BASE_DIR / "external_users.json"
+
 FIELDS = [
     ("nombres", "Nombres"),
     ("apellidos", "Apellidos"),
@@ -16,24 +18,30 @@ FIELDS = [
 
 
 class ExternalUsersBackend(QObject):
-    def __init__(self, view, parent=None):
+    def __init__(self, view, database: Database, parent=None):
         super().__init__(parent)
         self.view = view
-        self.records = load_records(RECORD_FILE, FIELDS)
+        self.database = database
         self.view.add_requested.connect(self.add_user)
-        self.view.set_records(self.records)
+        self.refresh()
+
+    def refresh(self):
+        """Consulta SQLite y actualiza la tabla."""
+        self.view.set_records(self.database.list_external_users())
 
     def add_user(self):
         dialog = UserRecordDialog("Agregar Usuario", FIELDS, self.view)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
-        updated = self.records + [dialog.get_record()]
+
         try:
-            save_records(RECORD_FILE, updated)
-        except OSError as exc:
+            self.database.add_external_user(dialog.get_record())
+        except (sqlite3.Error, OSError) as exc:
             cQMsgBox.critical(
-                self.view, "Error al guardar", f"No se pudo guardar el usuario externo.\n\n{exc}"
+                self.view,
+                "Error de base de datos",
+                f"No se pudo guardar el usuario en SQLite.\n\n{exc}",
             )
             return
-        self.records = updated
-        self.view.set_records(self.records)
+
+        self.refresh()
