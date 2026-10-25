@@ -53,4 +53,4 @@ La API se inicia junto con la interfaz, por defecto en el puerto TCP 8080. El pu
 
 El token común de los clientes sigue siendo `UAQinformatizacion7085`. Al tratarse de un valor compartido e incluido en los ejecutables, no debe considerarse un secreto fuerte; limita el acceso al puerto del cliente mediante el firewall y una red administrativa autorizada.
 
-La integración del backend central de autenticación con DesktopKiosk se realizará como una fase separada.
+La API REST ya se ejecuta junto con la interfaz. El endpoint de inicio de sesión comprueba el registro, pero todavía no verifica contraseñas: el contrato de registro no incluye credenciales. Consulta [docs/API.md](docs/API.md) antes de habilitarla en una red compartida.

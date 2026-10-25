@@ -70,6 +70,15 @@ class ApiTests(unittest.TestCase):
         saved = self.db.list_external_users()[0]
         self.assertEqual(saved["tipo_usuario"], "Estudiante Externo")
         self.assertEqual(saved["email"], "")
+        duplicate_student = self.client.post("/api/v1/users/register/externo", json={
+            "action": "registro_externo",
+            "data": {
+                "nombres": "Ejemplo", "apellidos": "Prueba",
+                "tipo-usuario": "estudiante", "universidad-ext": "Universidad X",
+            },
+        })
+        self.assertEqual(duplicate_student.status_code, 409)
+        self.assertFalse(duplicate_student.get_json()["unlocked"])
 
         public_general = self.client.post("/api/v1/users/register/externo", json={
             "action": "registro_externo",
@@ -82,6 +91,15 @@ class ApiTests(unittest.TestCase):
         saved = self.db.list_external_users()[1]
         self.assertEqual(saved["tipo_usuario"], "Público en general")
         self.assertEqual(saved["email"], "publico@example.com")
+        duplicate_public = self.client.post("/api/v1/users/register/externo", json={
+            "action": "registro_externo",
+            "data": {
+                "nombres": "Publico", "apellidos": "General",
+                "email": "publico@example.com", "tipo-usuario": "estudiante",
+            },
+        })
+        self.assertEqual(duplicate_public.status_code, 409)
+        self.assertFalse(duplicate_public.get_json()["unlocked"])
 
     def test_invalid_action_returns_400_json(self):
         response = self.client.post("/api/v1/users/register/alumno", json={
