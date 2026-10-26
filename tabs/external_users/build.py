@@ -50,7 +50,7 @@ class ExternalUsersTab(QWidget):
         record_id = item.data(Qt.ItemDataRole.UserRole) if item else None
         self.record_selection_changed.emit(int(record_id) if record_id is not None else -1)
 
-    def set_records(self, records, selected_id=None):
+    def set_records(self, records, selected_id=None, emit_selection=True):
         self.table.blockSignals(True)
         self.table.setRowCount(0)
         selected_row = None
@@ -68,4 +68,5 @@ class ExternalUsersTab(QWidget):
         else:
             self.table.clearSelection()
         self.table.blockSignals(False)
-        self.record_selection_changed.emit(int(selected_id) if selected_row is not None else -1)
+        if emit_selection:
+            self.record_selection_changed.emit(int(selected_id) if selected_row is not None else -1)
