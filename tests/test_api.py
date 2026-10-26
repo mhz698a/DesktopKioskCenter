@@ -33,6 +33,15 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(first.get_json(), {
             "unlocked": True, "message": "Registro de alumno completado con éxito."
         })
+
+        # La solicitud debe persistir el usuario y ambos tipos de log en SQLite.
+        self.assertEqual(self.db.list_internal_students()[0]["expediente"], "123456")
+        received = self.db.list_received_logins()
+        self.assertEqual(received[0]["action"], "registro_alumno")
+        self.assertEqual(received[0]["result"], "registrado")
+        access_logs = self.db.list_access_logs()
+        self.assertEqual(access_logs[0]["expediente"], "123456")
+
         duplicate = self.client.post("/api/v1/users/register/alumno", json=payload)
         self.assertEqual(duplicate.status_code, 409)
         self.assertEqual(duplicate.get_json(), {
