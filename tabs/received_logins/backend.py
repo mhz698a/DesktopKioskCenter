@@ -11,12 +11,16 @@ class ReceivedLoginsBackend(QObject):
         super().__init__(parent)
         self.view = view
         self.database = database
+        self._last_records = None
         self.view.count_totals_requested.connect(self.count_totals)
         self.refresh()
 
     def refresh(self):
-        """Vuelve a consultar los últimos eventos en SQLite."""
-        self.view.set_records(self.database.list_received_logins())
+        """Refresca los últimos eventos recibidos desde SQLite."""
+        records = self.database.list_received_logins()
+        if records != self._last_records:
+            self.view.set_records(records)
+            self._last_records = records
 
     def count_totals(self):
         """Cuenta en SQL y presenta el total más los subtotales por tipo/resultado."""
