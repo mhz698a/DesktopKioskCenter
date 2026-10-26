@@ -10,11 +10,15 @@ class AccessLogsBackend(QObject):
         super().__init__(parent)
         self.view = view
         self.database = database
+        self._last_records = None
         self.view.count_totals_requested.connect(self.count_totals)
         self.refresh()
 
     def refresh(self):
-        self.view.set_records(self.database.list_access_logs())
+        records = self.database.list_access_logs()
+        if records != self._last_records:
+            self.view.set_records(records)
+            self._last_records = records
 
     def count_totals(self):
         try:
