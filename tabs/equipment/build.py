@@ -23,6 +23,7 @@ class EquipmentTab(QWidget):
     lock_requested = pyqtSignal()
     unlock_requested = pyqtSignal()
     delete_requested = pyqtSignal()
+    send_ip_requested = pyqtSignal()
     save_requested = pyqtSignal()
     revert_requested = pyqtSignal()
 
@@ -84,6 +85,12 @@ class EquipmentTab(QWidget):
         action_row.addWidget(self.delete_button)
         editor_layout.addLayout(action_row)
 
+        send_ip_row = QHBoxLayout()
+        self.send_ip_button = QPushButton("Enviar IP", self.editor_panel)
+        send_ip_row.addWidget(self.send_ip_button)
+        send_ip_row.addStretch(1)
+        editor_layout.addLayout(send_ip_row)
+
         edit_row = QHBoxLayout()
         self.save_button = QPushButton("Guardar cambios", self.editor_panel)
         self.revert_button = QPushButton("Revertir cambios", self.editor_panel)
@@ -95,6 +102,7 @@ class EquipmentTab(QWidget):
         self.lock_button.clicked.connect(lambda _checked=False: self.lock_requested.emit())
         self.unlock_button.clicked.connect(lambda _checked=False: self.unlock_requested.emit())
         self.delete_button.clicked.connect(lambda _checked=False: self.delete_requested.emit())
+        self.send_ip_button.clicked.connect(lambda _checked=False: self.send_ip_requested.emit())
         self.save_button.clicked.connect(lambda _checked=False: self.save_requested.emit())
         self.revert_button.clicked.connect(lambda _checked=False: self.revert_requested.emit())
 
