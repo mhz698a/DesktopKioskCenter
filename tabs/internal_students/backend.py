@@ -23,10 +23,23 @@ class InternalStudentsBackend(QObject):
         view.revert_requested.connect(self.revert_student)
         self.refresh()
 
-    def refresh(self, selected_id=None):
+    def refresh(self, selected_id=None, preserve_editor=False):
         records = self.database.list_internal_students()
-        self._records_by_id = {int(record["id"]): record for record in records}
-        self.view.set_records(records, selected_id)
+        records_by_id = {int(record["id"]): record for record in records}
+
+        if preserve_editor:
+            selected_id = self._selected_id
+            if selected_id is not None and selected_id not in records_by_id:
+                self._selected_id = None
+                selected_id = None
+                self.view.editor_panel.clear_record()
+
+        self._records_by_id = records_by_id
+        self.view.set_records(
+            records,
+            selected_id,
+            emit_selection=not preserve_editor,
+        )
 
     def select_student(self, student_id):
         if student_id < 0 or int(student_id) not in self._records_by_id:
