@@ -94,7 +94,10 @@ class ReceiveIPWorker(QRunnable):
             response = requests.post(
                 f"{self.base_url}/api/kiosk/receive",
                 headers=self.headers,
-                json={"ip": self.server_ip},
+                json={
+                    "action": "receive",
+                    "data": {"server_control_ip": self.server_ip},
+                },
                 timeout=(2, 2),
             )
 
