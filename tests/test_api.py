@@ -136,6 +136,11 @@ class ApiTests(unittest.TestCase):
         self.assertFalse(response.get_json()["unlocked"])
         self.assertIn("email", response.get_json()["message"].lower())
 
+        # Aunque el registro se rechace, la petición debe quedar auditada.
+        rejected_log = self.db.list_received_logins()[0]
+        self.assertEqual(rejected_log["action"], "registro_externo")
+        self.assertEqual(rejected_log["result"], "validación fallida")
+
         worker = self.client.post("/api/v1/users/register/externo", json={
             "action": "registro_externo",
             "data": {
