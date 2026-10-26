@@ -3,7 +3,7 @@ import ipaddress
 from PyQt6.QtCore import QObject, QTimer
 from PyQt6.QtWidgets import QDialog, QMessageBox
 
-from action_req import ActionWorker
+from action_req import ActionWorker, ReceiveIPWorker
 from tabs.equipment.bulk_dlg_add import KioskDialog
 from const import DEFAULT_TOKEN, Kiosk
 from pollstatus import PollWorker
@@ -38,6 +38,7 @@ class EquipmentBackend(QObject):
         self.view.lock_requested.connect(lambda: self.send_selected_action("lock"))
         self.view.unlock_requested.connect(lambda: self.send_selected_action("unlock"))
         self.view.delete_requested.connect(self.delete_selected)
+        self.view.send_ip_requested.connect(self.send_server_ip_to_selected)
         self.view.save_requested.connect(self.save_selected)
         self.view.revert_requested.connect(self.revert_selected)
 
@@ -284,6 +285,49 @@ class EquipmentBackend(QObject):
             lambda *_args, current=worker: self._forget_worker(current)
         )
         self.threadpool.start(worker)
+
+    def send_server_ip_to_selected(self):
+        index = self.selected_index
+        if self._closing or index is None or not 0 <= index < len(self.kiosks):
+            return
+
+        main_window = self.parent()
+        detect_server_ip = getattr(main_window, "detect_server_ip", None)
+        if not callable(detect_server_ip):
+            cQMsgBox.critical(
+                self.view,
+                "Error al obtener la IP",
+                "No se pudo determinar la IP del servidor.",
+            )
+            return
+
+        server_ip = detect_server_ip()
+        if not server_ip or server_ip == "No disponible":
+            cQMsgBox.critical(
+                self.view,
+                "Error al obtener la IP",
+                "No se pudo determinar la IP del servidor.",
+            )
+            return
+
+        kiosk = self.kiosks[index]
+        worker = ReceiveIPWorker(
+            kiosk,
+            self._base_url(kiosk),
+            self._auth_headers(),
+            server_ip,
+        )
+        self._workers.add(worker)
+        worker.signals.success.connect(self.on_receive_ip_success)
+        worker.signals.error.connect(self.on_action_error)
+        worker.signals.finished.connect(
+            lambda *_args, current=worker: self._forget_worker(current)
+        )
+        self.threadpool.start(worker)
+
+    def on_receive_ip_success(self, title, message):
+        if not self._closing:
+            cQMsgBox.information(self.view, title, message)
 
     def on_action_error(self, title, message):
         if not self._closing:
