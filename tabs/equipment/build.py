@@ -86,7 +86,7 @@ class EquipmentTab(QWidget):
         editor_layout.addLayout(action_row)
 
         send_ip_row = QHBoxLayout()
-        self.send_ip_button = QPushButton("Enviar IP", self.editor_panel)
+        self.send_ip_button = QPushButton("Enviar IP de este servidor al PC cliente seleccionado", self.editor_panel)
         send_ip_row.addWidget(self.send_ip_button)
         send_ip_row.addStretch(1)
         editor_layout.addLayout(send_ip_row)
