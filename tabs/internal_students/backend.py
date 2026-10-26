@@ -16,6 +16,7 @@ class InternalStudentsBackend(QObject):
         self.view, self.database = view, database
         self._selected_id = None
         self._records_by_id = {}
+        self._last_records = None
         view.add_requested.connect(self.add_student)
         view.record_selection_changed.connect(self.select_student)
         view.save_requested.connect(self.save_student)
@@ -25,8 +26,10 @@ class InternalStudentsBackend(QObject):
 
     def refresh(self, selected_id=None, preserve_editor=False):
         records = self.database.list_internal_students()
-        records_by_id = {int(record["id"]): record for record in records}
+        if preserve_editor and records == self._last_records:
+            return
 
+        records_by_id = {int(record["id"]): record for record in records}
         if preserve_editor:
             selected_id = self._selected_id
             if selected_id is not None and selected_id not in records_by_id:
@@ -34,6 +37,7 @@ class InternalStudentsBackend(QObject):
                 selected_id = None
                 self.view.editor_panel.clear_record()
 
+        self._last_records = records
         self._records_by_id = records_by_id
         self.view.set_records(
             records,
