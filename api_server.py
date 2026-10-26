@@ -175,6 +175,10 @@ def create_api_app(database: Database) -> Flask:
         safe_access_log(record)
         return response(True, EXTERNAL_REGISTERED_MESSAGE, 201)
 
+    @app.get("/ping")
+    def ping():
+        return jsonify({"status": "ok"}), 200
+
     @app.get("/api/v1/health")
     def health():
         return jsonify({"status": "ok"}), 200
