@@ -5,7 +5,7 @@ import re
 import sqlite3
 import threading
 
-from flask import Flask, jsonify, request
+from flask import Flask, g, jsonify, request
 from werkzeug.serving import make_server
 
 from database import Database
@@ -41,6 +41,8 @@ def create_api_app(database: Database) -> Flask:
         return (request.headers.get("X-Kiosk-Name") or "Cliente API").strip()[:200]
 
     def safe_request_log(identifier, user_type, action, result, message):
+        # Marca el evento para que after_request no lo registre por duplicado.
+        g.received_log_recorded = True
         # No guardar contrasena ni volcar el cuerpo de la petición a los logs.
         try:
             database.record_received_login(
@@ -182,6 +184,52 @@ def create_api_app(database: Database) -> Flask:
     @app.get("/api/v1/health")
     def health():
         return jsonify({"status": "ok"}), 200
+
+    @app.after_request
+    def log_unrecorded_api_request(response):
+        """Registra también peticiones funcionales rechazadas por validación."""
+        route_actions = {
+            "/api/v1/auth-client-pc/login": "unlock_login",
+            "/api/v1/users/register/alumno": "registro_alumno",
+            "/api/v1/users/register/externo": "registro_externo",
+        }
+        if request.method != "POST" or request.path not in route_actions:
+            return response
+        if getattr(g, "received_log_recorded", False):
+            return response
+
+        payload = request.get_json(silent=True)
+        payload = payload if isinstance(payload, dict) else {}
+        data = payload.get("data")
+        data = data if isinstance(data, dict) else {}
+
+        identifier = (
+            data.get("usuario")
+            or data.get("expediente")
+            or data.get("email")
+            or data.get("nombres")
+            or ""
+        )
+        user_type = data.get("tipo-usuario") or data.get("tipo_usuario") or ""
+        action = payload.get("action") or route_actions[request.path]
+        status = response.status_code
+        if 200 <= status < 300:
+            result = "permitido" if request.path == "/api/v1/auth-client-pc/login" else "registrado"
+        elif status == 400:
+            result = "validación fallida"
+        elif status == 401:
+            result = "rechazado"
+        elif status == 409:
+            result = "duplicado"
+        elif status >= 500:
+            result = "error interno"
+        else:
+            result = f"HTTP {status}"
+
+        body = response.get_json(silent=True)
+        message = body.get("message", "") if isinstance(body, dict) else ""
+        safe_request_log(identifier, user_type, action, result, message or f"HTTP {status}")
+        return response
 
     return app
 
