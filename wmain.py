@@ -120,6 +120,34 @@ class MainWindow(QMainWindow):
         self.update_header_clock()
         self.update_server_ip()
 
+        self.tabs.currentChanged.connect(self.refresh_active_data_tab)
+        self.data_refresh_timer = QTimer(self)
+        self.data_refresh_timer.timeout.connect(self.refresh_active_data_tab)
+        self.data_refresh_timer.start(2000)
+
+    def refresh_active_data_tab(self, _index=None):
+        """Actualiza la pestaña visible para reflejar peticiones REST recién recibidas."""
+        if self._closing:
+            return
+
+        try:
+            index = self.tabs.currentIndex()
+            if index == 1:
+                self.internal_students_backend.refresh(preserve_editor=True)
+            elif index == 2:
+                self.external_users_backend.refresh(preserve_editor=True)
+            elif index == 3:
+                self.received_logins_backend.refresh()
+            elif index == 4:
+                self.access_logs_backend.refresh()
+        except Exception:
+            # Un fallo transitorio de lectura no debe cerrar la interfaz; el siguiente
+            # ciclo vuelve a consultar SQLite y actualizará la tabla si está disponible.
+            import logging
+            logging.getLogger(__name__).exception(
+                "No se pudo actualizar la pestaña de datos desde SQLite."
+            )
+
     def update_header_clock(self):
         self.clock_label.setText(QTime.currentTime().toString("HH:mm:ss"))
         self.date_label.setText(QDate.currentDate().toString("dd/MM/yyyy"))
@@ -166,6 +194,7 @@ class MainWindow(QMainWindow):
         self._closing = True
         self.clock_timer.stop()
         self.server_ip_timer.stop()
+        self.data_refresh_timer.stop()
         self.equipment_backend.stop()
         self.threadpool.clear()
         self.threadpool.waitForDone()
