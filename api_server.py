@@ -181,9 +181,53 @@ def create_api_app(database: Database) -> Flask:
     def ping():
         return jsonify({"status": "ok"}), 200
 
-    @app.get("/api/v1/health")
+    @app.post("/api/v1/health")
     def health():
-        return jsonify({"status": "ok"}), 200
+        """Recibe el heartbeat del cliente y registra su IP de origen."""
+        data, error = parse_payload("heartbeat")
+        if error:
+            return error
+
+        status_code = data.get("status")
+        if isinstance(status_code, bool) or not isinstance(status_code, int):
+            return jsonify({"status": "error", "message": "data.status debe ser un entero."}), 400
+        if status_code not in (1, 2, 3):
+            return jsonify({
+                "status": "error",
+                "message": "El cliente solo puede reportar los estados 1, 2 o 3.",
+            }), 400
+
+        time_string = data.get("time_string")
+        if not isinstance(time_string, str) or not re.fullmatch(r"\\d{2,}:[0-5]\\d:[0-5]\\d", time_string):
+            return jsonify({
+                "status": "error",
+                "message": "data.time_string debe tener formato HH:MM:SS.",
+            }), 400
+
+        source_ip = request.remote_addr
+        if not source_ip:
+            return jsonify({"status": "error", "message": "No se pudo determinar la IP de origen."}), 400
+
+        try:
+            import ipaddress
+            parsed_ip = ipaddress.ip_address(source_ip)
+            if getattr(parsed_ip, "ipv4_mapped", None) is not None:
+                source_ip = str(parsed_ip.ipv4_mapped)
+            else:
+                source_ip = str(parsed_ip)
+            database.record_kiosk_heartbeat(
+                client_ip=source_ip,
+                status_code=status_code,
+                time_string=time_string,
+                kiosk_name=kiosk_name(),
+            )
+        except ValueError as exc:
+            return jsonify({"status": "error", "message": str(exc)}), 400
+        except sqlite3.Error:
+            logger.exception("No se pudo guardar el heartbeat del kiosco.")
+            return jsonify({"status": "error", "message": "No se pudo guardar el estado del kiosco."}), 500
+
+        return jsonify({"status": "ok", "message": "Heartbeat recibido."}), 200
 
     @app.after_request
     def log_unrecorded_api_request(response):
