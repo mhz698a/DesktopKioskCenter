@@ -100,3 +100,18 @@ El campo `tipo-usuario` debe indicar el tipo real de usuario: `estudiante`/`Estu
 Las peticiones recibidas se guardan en `received_logins`, sin registrar contraseñas. Los accesos y registros permitidos se guardan en `access_logs`. La cabecera opcional `X-Kiosk-Name` identifica el kiosco en los logs; de lo contrario se usa `Cliente API`.
 
 Las solicitudes con acción incorrecta o campos inválidos reciben HTTP 400. El servicio escucha en todas las interfaces por defecto; restringe el puerto con el firewall de Windows a las redes de clientes autorizados.
+
+
+## Control de energía de equipos cliente
+
+DesktopKioskCenter envía las operaciones de apagado o reinicio directamente a cada DesktopKiosk configurado, no a este servidor REST central. Cada equipo recibe un `POST /api/kiosk/pc-control` con el token Bearer del kiosco y uno de estos cuerpos:
+
+~~~json
+{ "action": "shutdown-pc" }
+~~~
+
+~~~json
+{ "action": "restart-pc" }
+~~~
+
+Los botones de apagado/reinicio individual o masivo muestran una confirmación antes de enviar la solicitud. El endpoint responde por equipo; los resultados masivos muestran un resumen con las solicitudes aceptadas y las que fallaron. Los comandos solo se completan si la cuenta de Windows que ejecuta DesktopKiosk posee el privilegio de apagado/reinicio requerido.
