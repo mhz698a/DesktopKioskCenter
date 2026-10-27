@@ -7,7 +7,7 @@ from css.cQDialogs import cQMsgBox
 from database import Database
 from user_record_dialog import UserRecordDialog
 
-FIELDS = [("nombres", "Nombres"), ("apellidos", "Apellidos"), ("facultad", "Facultad"), ("expediente", "Expediente")]
+FIELDS = [("nombres", "Nombres"), ("apellidos", "Apellidos"), ("email", "Correo electrónico"), ("facultad", "Facultad"), ("expediente", "Expediente")]
 
 
 class InternalStudentsBackend(QObject):
@@ -60,7 +60,7 @@ class InternalStudentsBackend(QObject):
         try:
             new_id = self.database.add_internal_student(dialog.get_record())
         except sqlite3.IntegrityError:
-            cQMsgBox.warning(self.view, "Expediente duplicado", "Ya existe un alumno registrado con ese expediente.")
+            cQMsgBox.warning(self.view, "Registro duplicado", "Ya existe un usuario registrado con ese correo electrónico o expediente.")
             return
         except (sqlite3.Error, OSError) as exc:
             cQMsgBox.critical(self.view, "Error de base de datos", f"No se pudo guardar el alumno en SQLite.\n\n{exc}")
@@ -77,7 +77,7 @@ class InternalStudentsBackend(QObject):
         try:
             updated = self.database.update_internal_student(self._selected_id, self.view.editor_panel.get_record())
         except sqlite3.IntegrityError:
-            cQMsgBox.warning(self.view, "Expediente duplicado", "Ya existe otro alumno con ese expediente.")
+            cQMsgBox.warning(self.view, "Registro duplicado", "Ya existe otro usuario con ese correo electrónico o expediente.")
             return
         except (sqlite3.Error, OSError) as exc:
             cQMsgBox.critical(self.view, "Error de base de datos", f"No se pudieron guardar los cambios.\n\n{exc}")
