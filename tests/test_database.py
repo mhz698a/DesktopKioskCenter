@@ -44,14 +44,42 @@ class DatabaseTests(unittest.TestCase):
         record = {
             "nombres": "Ana",
             "apellidos": "Pérez",
+            "email": "ana@example.com",
             "facultad": "Facultad de Informática",
             "expediente": "12345",
         }
         self.db.add_internal_student(record)
         self.assertEqual(len(self.db.list_internal_students()), 1)
+        self.assertEqual(self.db.list_internal_students()[0]["email"], "ana@example.com")
 
         with self.assertRaises(sqlite3.IntegrityError):
             self.db.add_internal_student(record)
+
+    def test_email_is_unique_across_internal_and_external_users(self):
+        self.db.add_internal_student({
+            "nombres": "Ana", "apellidos": "Prueba",
+            "email": "Ana@example.com", "facultad": "Facultad de Informática",
+            "expediente": "10001",
+        })
+        self.assertTrue(self.db.email_exists("ana@EXAMPLE.com"))
+        self.assertTrue(self.db.find_registered_user("ANA@example.com"))
+        self.assertEqual(
+            self.db.find_registered_user("ANA@example.com")["expediente"], "10001"
+        )
+
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.add_external_user({
+                "nombres": "Otra", "apellidos": "Persona",
+                "email": "ANA@example.com", "tipo_usuario": "Público en general",
+                "universidad": "",
+            })
+
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.add_internal_student({
+                "nombres": "Otra", "apellidos": "Persona",
+                "email": "ana@example.com", "facultad": "Facultad de Artes",
+                "expediente": "10002",
+            })
 
     def test_external_user_without_university_keeps_it_empty(self):
         self.db.add_external_user({
@@ -83,10 +111,12 @@ class DatabaseTests(unittest.TestCase):
     def test_student_and_external_user_can_be_updated_and_deleted(self):
         student_id = self.db.add_internal_student({
             "nombres": "Ana", "apellidos": "Pérez",
+            "email": "ana@example.com",
             "facultad": "Facultad de Artes", "expediente": "123",
         })
         self.assertTrue(self.db.update_internal_student(student_id, {
             "nombres": "María", "apellidos": "Pérez",
+            "email": "maria@example.com",
             "facultad": "Facultad de Derecho", "expediente": "456",
         }))
         self.assertEqual(self.db.list_internal_students()[0]["expediente"], "456")
