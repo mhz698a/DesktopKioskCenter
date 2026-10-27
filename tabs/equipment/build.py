@@ -19,9 +19,15 @@ from css.cQTablewidget import cQTableW
 class EquipmentTab(QWidget):
     add_single_requested = pyqtSignal()
     add_multiple_requested = pyqtSignal()
+    shutdown_all_requested = pyqtSignal()
+    restart_all_requested = pyqtSignal()
+    admin_credentials_requested = pyqtSignal()
     selection_changed = pyqtSignal(int)
     lock_requested = pyqtSignal()
     unlock_requested = pyqtSignal()
+    close_requested = pyqtSignal()
+    shutdown_pc_requested = pyqtSignal()
+    restart_pc_requested = pyqtSignal()
     delete_requested = pyqtSignal()
     send_ip_requested = pyqtSignal()
     save_requested = pyqtSignal()
@@ -40,6 +46,21 @@ class EquipmentTab(QWidget):
         add_action.triggered.connect(lambda _checked=False: self.add_single_requested.emit())
         add_multiple_action = toolbar.addAction("Agregar varios equipos")
         add_multiple_action.triggered.connect(lambda _checked=False: self.add_multiple_requested.emit())
+
+        toolbar.addSeparator()
+        shutdown_all_action = toolbar.addAction("Apagar todos los Equipos")
+        shutdown_all_action.triggered.connect(
+            lambda _checked=False: self.shutdown_all_requested.emit()
+        )
+        restart_all_action = toolbar.addAction("Reiniciar todos los equipos")
+        restart_all_action.triggered.connect(
+            lambda _checked=False: self.restart_all_requested.emit()
+        )
+        toolbar.addSeparator()
+        admin_credentials_action = toolbar.addAction("Credencial del administrador")
+        admin_credentials_action.triggered.connect(
+            lambda _checked=False: self.admin_credentials_requested.emit()
+        )
 
         splitter = QSplitter(Qt.Orientation.Horizontal, self)
         self.table = cQTableW(0, 4, splitter)
@@ -85,6 +106,15 @@ class EquipmentTab(QWidget):
         action_row.addWidget(self.delete_button)
         editor_layout.addLayout(action_row)
 
+        power_row = QHBoxLayout()
+        self.close_kiosk_button = QPushButton("Cerrar Kiosko", self.editor_panel)
+        self.shutdown_pc_button = QPushButton("Apagar PC", self.editor_panel)
+        self.restart_pc_button = QPushButton("Reiniciar PC", self.editor_panel)
+        power_row.addWidget(self.close_kiosk_button)
+        power_row.addWidget(self.shutdown_pc_button)
+        power_row.addWidget(self.restart_pc_button)
+        editor_layout.addLayout(power_row)
+
         send_ip_row = QHBoxLayout()
         self.send_ip_button = QPushButton("Enviar IP de este servidor al PC cliente seleccionado", self.editor_panel)
         send_ip_row.addWidget(self.send_ip_button)
@@ -102,6 +132,9 @@ class EquipmentTab(QWidget):
         self.lock_button.clicked.connect(lambda _checked=False: self.lock_requested.emit())
         self.unlock_button.clicked.connect(lambda _checked=False: self.unlock_requested.emit())
         self.delete_button.clicked.connect(lambda _checked=False: self.delete_requested.emit())
+        self.close_kiosk_button.clicked.connect(lambda _checked=False: self.close_requested.emit())
+        self.shutdown_pc_button.clicked.connect(lambda _checked=False: self.shutdown_pc_requested.emit())
+        self.restart_pc_button.clicked.connect(lambda _checked=False: self.restart_pc_requested.emit())
         self.send_ip_button.clicked.connect(lambda _checked=False: self.send_ip_requested.emit())
         self.save_button.clicked.connect(lambda _checked=False: self.save_requested.emit())
         self.revert_button.clicked.connect(lambda _checked=False: self.revert_requested.emit())
