@@ -31,11 +31,11 @@ Todas las rutas POST reciben JSON. Las respuestas de las rutas funcionales conti
 ```json
 {
   "action": "unlock_login",
-  "data": {"usuario": "123456", "contrasena": ".123456"}
+  "data": {"usuario": "alumno@example.com", "contrasena": ".alumno@example.com"}
 }
 ```
 
-El campo `data.usuario` (o `data.identificador`) debe contener el correo electrónico del usuario o, para alumnos internos, el expediente. El servidor busca primero por email en todas las categorías de usuario, sin distinguir mayúsculas y minúsculas, y después por expediente. Los nombres no son identificadores de acceso. Si no existe, responde HTTP 401. Si existe, responde HTTP 200 con `unlocked: true`.
+El campo `data.usuario` (o `data.identificador`) debe contener el correo electrónico del usuario; para alumnos internos también se permite el expediente como identificador alternativo. El servidor busca primero por email en todas las categorías de usuario, sin distinguir mayúsculas y minúsculas, y después por expediente. Los nombres no son identificadores de acceso. Si no existe, responde HTTP 401. Si existe, responde HTTP 200 con `unlocked: true`.
 
 **Limitación importante:** los payloads de registro de esta especificación no contienen contraseña y SQLite no almacena credenciales. Actualmente la ruta comprueba que el usuario esté registrado y exige que el campo `contrasena` esté presente, pero no verifica que su valor sea correcto. Para utilizar el endpoint como autenticación segura, se necesita definir cómo registrar/verificar credenciales y almacenar hashes de contraseña. La contraseña nunca se incluye en logs.
 
