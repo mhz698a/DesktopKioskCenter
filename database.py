@@ -221,20 +221,6 @@ class Database:
                 """
             )
 
-            external_columns = {
-                row["name"]
-                for row in connection.execute("PRAGMA table_info(external_users)")
-            }
-            if "email" not in external_columns:
-                connection.execute(
-                    "ALTER TABLE external_users ADD COLUMN email TEXT NOT NULL DEFAULT ''"
-                )
-            connection.execute(
-                """CREATE UNIQUE INDEX IF NOT EXISTS idx_external_users_email_unique
-                   ON external_users(email COLLATE NOCASE)
-                   WHERE TRIM(email) <> ''"""
-            )
-
         self._migrate_legacy_json()
 
     def _migrate_legacy_json(self) -> None:
