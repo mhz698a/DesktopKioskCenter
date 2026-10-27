@@ -6,16 +6,18 @@ from PyQt6.QtWidgets import QDialog, QMessageBox
 from action_req import ActionWorker, ReceiveIPWorker
 from tabs.equipment.bulk_dlg_add import KioskDialog
 from const import DEFAULT_TOKEN, Kiosk
-from pollstatus import PollWorker
+from database import Database
 from tabs.equipment.bulk_dialog import BulkEquipmentDialog
 from utils import load_kiosks, save_kiosks
 from css.cQDialogs import cQMsgBox
 
 class EquipmentBackend(QObject):
-    def __init__(self, view, threadpool, parent=None):
+    def __init__(self, view, threadpool, parent=None, database=None):
         super().__init__(parent)
         self.view = view
         self.threadpool = threadpool
+        self.database = database or Database()
+        self.database.initialize()
         self.kiosks = load_kiosks()
         self.selected_index = None
         self._closing = False
@@ -44,7 +46,7 @@ class EquipmentBackend(QObject):
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.poll_status)
-        self.timer.start(3000)
+        self.timer.start(1000)
 
         self.refresh_table()
         self.poll_status()
@@ -333,27 +335,50 @@ class EquipmentBackend(QObject):
         if not self._closing:
             cQMsgBox.critical(self.view, title, message)
 
+    @staticmethod
+    def _parse_time_string(value):
+        try:
+            hours, minutes, seconds = str(value).split(":")
+            hours, minutes, seconds = int(hours), int(minutes), int(seconds)
+            if hours < 0 or not 0 <= minutes < 60 or not 0 <= seconds < 60:
+                return None
+            return hours * 3600 + minutes * 60 + seconds
+        except (TypeError, ValueError):
+            return None
+
     def poll_status(self):
+        """Lee los estados persistidos por heartbeat; no consulta cada PC directamente."""
         if self._closing:
             return
-        for index, kiosk in enumerate(self.kiosks):
-            worker = PollWorker(
-                index, kiosk, self._base_url(kiosk), self._auth_headers()
-            )
-            self._workers.add(worker)
-            worker.signals.finished.connect(self.on_poll_finished)
-            worker.signals.finished.connect(
-                lambda *_args, current=worker: self._forget_worker(current)
-            )
-            self.threadpool.start(worker)
 
-    def on_poll_finished(self, index, new_state, new_seconds):
-        if self._closing or not 0 <= index < len(self.kiosks):
+        try:
+            heartbeat_by_ip = {
+                item["client_ip"]: item
+                for item in self.database.list_kiosk_heartbeats()
+            }
+            state_labels = {
+                item["status_code"]: item["label"]
+                for item in self.database.list_kiosk_status_codes()
+            }
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception(
+                "No se pudieron leer los estados de heartbeat desde SQLite."
+            )
             return
-        kiosk = self.kiosks[index]
-        kiosk.state = new_state
-        kiosk.locked_seconds = new_seconds
-        self.view.update_equipment_status(index, kiosk)
+
+        offline_label = state_labels.get(0, "Sin conexión")
+        for index, kiosk in enumerate(self.kiosks):
+            heartbeat = heartbeat_by_ip.get(kiosk.host)
+            if heartbeat is None:
+                kiosk.state = offline_label
+                kiosk.locked_seconds = None
+            else:
+                kiosk.state = heartbeat["status_label"]
+                kiosk.locked_seconds = self._parse_time_string(
+                    heartbeat.get("time_string")
+                )
+            self.view.update_equipment_status(index, kiosk)
 
     def _forget_worker(self, worker):
         self._workers.discard(worker)
