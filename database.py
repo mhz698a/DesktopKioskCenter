@@ -611,10 +611,11 @@ class Database:
             return cursor.rowcount > 0
 
     def find_registered_user(self, identifier: str) -> dict | None:
-        """Busca un alumno por expediente o un usuario externo por email.
+        """Busca por email en todas las categorías y luego por expediente interno.
 
-        El contrato actual solicita comprobar el registro. No se verifica
-        contraseña porque los payloads de registro no definen credenciales.
+        Nunca resuelve identidades por nombres. El contrato actual solo comprueba
+        que el usuario está registrado; no valida contraseñas porque los payloads
+        de registro no definen credenciales.
         """
         identifier = identifier.strip()
         with self.connection() as connection:
