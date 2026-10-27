@@ -161,7 +161,7 @@ class RegisteredUserEditor(QWidget):
         for key, label in (("nombres", "Nombres"), ("apellidos", "Apellidos")):
             if not all(character.isalpha() or character == " " for character in record[key]):
                 return False, f"El campo «{label}» solo permite letras y espacios."
-        if not re.fullmatch(r"[^@\\s]+@[^@\\s]+\\.[^@\\s]+", record["email"]):
+        if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", record["email"]):
             return False, "Ingresa una dirección de correo electrónico válida."
         if self.kind == "student" and not re.fullmatch(r"[0-9]+", record["expediente"]):
             return False, "El expediente debe contener únicamente números."
