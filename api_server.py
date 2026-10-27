@@ -198,7 +198,7 @@ def create_api_app(database: Database) -> Flask:
             }), 400
 
         time_string = data.get("time_string")
-        if not isinstance(time_string, str) or not re.fullmatch(r"\\d{2,}:[0-5]\\d:[0-5]\\d", time_string):
+        if not isinstance(time_string, str) or not re.fullmatch(r"\d{2,}:[0-5]\d:[0-5]\d", time_string):
             return jsonify({
                 "status": "error",
                 "message": "data.time_string debe tener formato HH:MM:SS.",
@@ -284,22 +284,44 @@ class ApiServer:
     def __init__(self, database: Database, host=None, port=None):
         self.host = host or os.environ.get("DESKTOPKIOSKCENTER_API_HOST", "0.0.0.0")
         self.port = int(port if port is not None else os.environ.get("DESKTOPKIOSKCENTER_API_PORT", "7085"))
+        self.database = database
         self.app = create_api_app(database)
         self._server = None
         self._thread = None
+        self._heartbeat_monitor_stop = threading.Event()
+        self._heartbeat_monitor_thread = None
+
+    def _monitor_stale_heartbeats(self):
+        """Marca como offline a los clientes tras cuatro segundos sin heartbeat."""
+        while not self._heartbeat_monitor_stop.wait(0.25):
+            try:
+                self.database.mark_stale_kiosks_offline(timeout_seconds=4.0)
+            except Exception:
+                logger.exception("No se pudo actualizar el estado de kioscos inactivos.")
 
     def start(self):
         if self._server is not None:
             return
         self._server = make_server(self.host, self.port, self.app, threaded=True)
+        self._heartbeat_monitor_stop.clear()
         self._thread = threading.Thread(
             target=self._server.serve_forever,
             name="DesktopKioskCenter-REST",
             daemon=True,
         )
         self._thread.start()
+        self._heartbeat_monitor_thread = threading.Thread(
+            target=self._monitor_stale_heartbeats,
+            name="DesktopKioskCenter-HeartbeatMonitor",
+            daemon=True,
+        )
+        self._heartbeat_monitor_thread.start()
 
     def stop(self):
+        self._heartbeat_monitor_stop.set()
+        if self._heartbeat_monitor_thread is not None:
+            self._heartbeat_monitor_thread.join(timeout=2)
+        self._heartbeat_monitor_thread = None
         if self._server is None:
             return
         self._server.shutdown()
