@@ -375,8 +375,10 @@ class EquipmentBackend(QObject):
                 kiosk.locked_seconds = None
             else:
                 kiosk.state = heartbeat["status_label"]
-                kiosk.locked_seconds = self._parse_time_string(
-                    heartbeat.get("time_string")
+                kiosk.locked_seconds = (
+                    None
+                    if heartbeat["status_code"] == 0
+                    else self._parse_time_string(heartbeat.get("time_string"))
                 )
             self.view.update_equipment_status(index, kiosk)
 
