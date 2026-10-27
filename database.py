@@ -62,6 +62,7 @@ class Database:
                     apellidos TEXT NOT NULL,
                     facultad TEXT NOT NULL,
                     expediente TEXT NOT NULL UNIQUE,
+                    email TEXT NOT NULL DEFAULT '',
                     created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
                 );
 
@@ -141,7 +142,85 @@ class Database:
                 ),
             )
 
-            # Migración incremental para bases de datos anteriores al campo Email.
+            # Migraciones incrementales de correo electrónico en ambas clases de usuarios.
+            internal_columns = {
+                row["name"]
+                for row in connection.execute("PRAGMA table_info(internal_students)")
+            }
+            if "email" not in internal_columns:
+                connection.execute(
+                    "ALTER TABLE internal_students ADD COLUMN email TEXT NOT NULL DEFAULT ''"
+                )
+
+            external_columns = {
+                row["name"]
+                for row in connection.execute("PRAGMA table_info(external_users)")
+            }
+            if "email" not in external_columns:
+                connection.execute(
+                    "ALTER TABLE external_users ADD COLUMN email TEXT NOT NULL DEFAULT ''"
+                )
+
+            connection.execute(
+                """CREATE UNIQUE INDEX IF NOT EXISTS idx_internal_students_email_unique
+                   ON internal_students(email COLLATE NOCASE)
+                   WHERE TRIM(email) <> ''"""
+            )
+            connection.execute(
+                """CREATE UNIQUE INDEX IF NOT EXISTS idx_external_users_email_unique
+                   ON external_users(email COLLATE NOCASE)
+                   WHERE TRIM(email) <> ''"""
+            )
+
+            # Garantiza unicidad del correo entre tablas, no solo dentro de cada tipo.
+            connection.executescript(
+                """
+                CREATE TRIGGER IF NOT EXISTS trg_internal_email_not_in_external_insert
+                BEFORE INSERT ON internal_students
+                WHEN TRIM(NEW.email) <> ''
+                BEGIN
+                    SELECT RAISE(ABORT, 'email already registered')
+                    WHERE EXISTS (
+                        SELECT 1 FROM external_users
+                        WHERE TRIM(email) <> '' AND email = NEW.email COLLATE NOCASE
+                    );
+                END;
+
+                CREATE TRIGGER IF NOT EXISTS trg_internal_email_not_in_external_update
+                BEFORE UPDATE OF email ON internal_students
+                WHEN TRIM(NEW.email) <> ''
+                BEGIN
+                    SELECT RAISE(ABORT, 'email already registered')
+                    WHERE EXISTS (
+                        SELECT 1 FROM external_users
+                        WHERE TRIM(email) <> '' AND email = NEW.email COLLATE NOCASE
+                    );
+                END;
+
+                CREATE TRIGGER IF NOT EXISTS trg_external_email_not_in_internal_insert
+                BEFORE INSERT ON external_users
+                WHEN TRIM(NEW.email) <> ''
+                BEGIN
+                    SELECT RAISE(ABORT, 'email already registered')
+                    WHERE EXISTS (
+                        SELECT 1 FROM internal_students
+                        WHERE TRIM(email) <> '' AND email = NEW.email COLLATE NOCASE
+                    );
+                END;
+
+                CREATE TRIGGER IF NOT EXISTS trg_external_email_not_in_internal_update
+                BEFORE UPDATE OF email ON external_users
+                WHEN TRIM(NEW.email) <> ''
+                BEGIN
+                    SELECT RAISE(ABORT, 'email already registered')
+                    WHERE EXISTS (
+                        SELECT 1 FROM internal_students
+                        WHERE TRIM(email) <> '' AND email = NEW.email COLLATE NOCASE
+                    );
+                END;
+                """
+            )
+
             external_columns = {
                 row["name"]
                 for row in connection.execute("PRAGMA table_info(external_users)")
@@ -366,7 +445,7 @@ class Database:
         with self.connection() as connection:
             rows = connection.execute(
                 """
-                SELECT id, nombres, apellidos, facultad, expediente, created_at
+                SELECT id, nombres, apellidos, facultad, expediente, email, created_at
                 FROM internal_students
                 ORDER BY id
                 """
@@ -374,33 +453,42 @@ class Database:
             return self._as_dicts(rows)
 
     def add_internal_student(self, record: dict) -> int:
-        """Inserta un alumno y devuelve su id; expediente no puede repetirse."""
+        """Inserta un alumno con email único en el catálogo completo de usuarios."""
+        email = self._validate_email(record.get("email", ""))
         with self.connection() as connection:
+            if self._email_in_use(connection, email):
+                raise sqlite3.IntegrityError("email already registered")
             cursor = connection.execute(
                 """
                 INSERT INTO internal_students
-                    (nombres, apellidos, facultad, expediente)
-                VALUES (?, ?, ?, ?)
+                    (nombres, apellidos, facultad, expediente, email)
+                VALUES (?, ?, ?, ?, ?)
                 """,
                 (
                     record["nombres"].strip(),
                     record["apellidos"].strip(),
                     record["facultad"].strip(),
                     record["expediente"].strip(),
+                    email,
                 ),
             )
             return int(cursor.lastrowid)
 
     def update_internal_student(self, student_id: int, record: dict) -> bool:
-        """Actualiza un alumno existente; expediente sigue protegido por UNIQUE."""
+        """Actualiza un alumno y garantiza la unicidad de email."""
+        email = self._validate_email(record.get("email", ""))
         with self.connection() as connection:
+            if self._email_in_use(
+                connection, email, exclude_internal_student_id=int(student_id)
+            ):
+                raise sqlite3.IntegrityError("email already registered")
             cursor = connection.execute(
                 """UPDATE internal_students
-                   SET nombres = ?, apellidos = ?, facultad = ?, expediente = ?
+                   SET nombres = ?, apellidos = ?, facultad = ?, expediente = ?, email = ?
                    WHERE id = ?""",
                 (record["nombres"].strip(), record["apellidos"].strip(),
                  record["facultad"].strip(), record["expediente"].strip(),
-                 int(student_id)),
+                 email, int(student_id)),
             )
             return cursor.rowcount > 0
 
@@ -425,7 +513,54 @@ class Database:
             return self._as_dicts(rows)
 
     @staticmethod
+    def _validate_email(email) -> str:
+        """Valida el correo electrónico común a todos los usuarios registrados."""
+        email = str(email or "").strip()
+        if not email:
+            raise ValueError("El correo electrónico es obligatorio.")
+        if not re.fullmatch(r"[^@\\s]+@[^@\\s]+\\.[^@\\s]+", email):
+            raise ValueError("La dirección de correo electrónico no es válida.")
+        return email
+
+    @staticmethod
     def _validate_external_email(email) -> str:
+        """Valida el correo obligatorio de los usuarios externos."""
+        email = str(email or "").strip()
+        if not email:
+            raise ValueError("El email es obligatorio para todos los usuarios externos.")
+        if not re.fullmatch(r"[^@\\s]+@[^@\\s]+\\.[^@\\s]+", email):
+            raise ValueError("La dirección de email no es válida.")
+        return email
+
+    @staticmethod
+    def _email_in_use(
+        connection,
+        email: str,
+        *,
+        exclude_internal_student_id: int | None = None,
+        exclude_external_user_id: int | None = None,
+    ) -> bool:
+        internal_sql = (
+            "SELECT 1 FROM internal_students "
+            "WHERE TRIM(email) <> '' AND email = ? COLLATE NOCASE"
+        )
+        internal_params: tuple = (email,)
+        if exclude_internal_student_id is not None:
+            internal_sql += " AND id <> ?"
+            internal_params += (int(exclude_internal_student_id),)
+        if connection.execute(internal_sql + " LIMIT 1", internal_params).fetchone():
+            return True
+
+        external_sql = (
+            "SELECT 1 FROM external_users "
+            "WHERE TRIM(email) <> '' AND email = ? COLLATE NOCASE"
+        )
+        external_params: tuple = (email,)
+        if exclude_external_user_id is not None:
+            external_sql += " AND id <> ?"
+            external_params += (int(exclude_external_user_id),)
+        return connection.execute(external_sql + " LIMIT 1", external_params).fetchone() is not None
+
         """Valida que todo usuario externo tenga un email válido."""
         email = str(email or "").strip()
         if not email:
@@ -444,6 +579,8 @@ class Database:
             universidad = ""
 
         with self.connection() as connection:
+            if self._email_in_use(connection, email):
+                raise sqlite3.IntegrityError("email already registered")
             cursor = connection.execute(
                 """
                 INSERT INTO external_users
@@ -468,6 +605,8 @@ class Database:
         if tipo_usuario != "Estudiante Externo":
             universidad = ""
         with self.connection() as connection:
+            if self._email_in_use(connection, email, exclude_external_user_id=int(user_id)):
+                raise sqlite3.IntegrityError("email already registered")
             cursor = connection.execute(
                 """UPDATE external_users
                    SET nombres = ?, apellidos = ?, email = ?, tipo_usuario = ?, universidad = ?
@@ -493,15 +632,17 @@ class Database:
         """
         identifier = identifier.strip()
         with self.connection() as connection:
-            student = connection.execute(
+            # Buscar por correo primero para evitar depender de nombres coincidentes.
+            student_by_email = connection.execute(
                 """SELECT id, nombres, apellidos, facultad, expediente,
-                          '' AS email, '' AS universidad,
-                          'Alumno interno' AS tipo_usuario
-                   FROM internal_students WHERE expediente = ?""",
+                          email, '' AS universidad, 'Alumno interno' AS tipo_usuario
+                   FROM internal_students
+                   WHERE email <> '' AND email = ? COLLATE NOCASE""",
                 (identifier,),
             ).fetchone()
-            if student:
-                return dict(student)
+            if student_by_email:
+                return dict(student_by_email)
+
             external = connection.execute(
                 """SELECT id, nombres, apellidos, '' AS facultad, '' AS expediente,
                           email, universidad, tipo_usuario
@@ -509,18 +650,29 @@ class Database:
                    WHERE email <> '' AND email = ? COLLATE NOCASE""",
                 (identifier,),
             ).fetchone()
-            return dict(external) if external else None
+            if external:
+                return dict(external)
+
+            # El expediente sigue siendo un identificador alternativo para alumnos.
+            student_by_expediente = connection.execute(
+                """SELECT id, nombres, apellidos, facultad, expediente,
+                          email, '' AS universidad, 'Alumno interno' AS tipo_usuario
+                   FROM internal_students WHERE expediente = ?""",
+                (identifier,),
+            ).fetchone()
+            return dict(student_by_expediente) if student_by_expediente else None
 
     def external_user_exists(self, record: dict) -> bool:
-        """Comprueba duplicados por email, identificador obligatorio del usuario externo."""
+        """Comprueba si el correo ya existe en cualquier categoría de usuario."""
         email = self._validate_external_email(record.get("email", ""))
         with self.connection() as connection:
-            row = connection.execute(
-                """SELECT 1 FROM external_users
-                   WHERE email <> '' AND email = ? COLLATE NOCASE LIMIT 1""",
-                (email,),
-            ).fetchone()
-            return row is not None
+            return self._email_in_use(connection, email)
+
+    def email_exists(self, email: str) -> bool:
+        """Comprueba la unicidad global del correo electrónico."""
+        email = self._validate_email(email)
+        with self.connection() as connection:
+            return self._email_in_use(connection, email)
 
     def list_access_logs(self, limit: int | None = 1000) -> list[dict]:
         """Lista los eventos de acceso más recientes."""
