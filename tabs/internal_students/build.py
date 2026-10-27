@@ -22,7 +22,7 @@ class InternalStudentsTab(QWidget):
 
         splitter = QSplitter(Qt.Orientation.Horizontal, self)
         self.table = cQTableW(0, 6, splitter)
-        self.table.setHorizontalHeaderLabels(["Índice", "Nombres", "Apellidos", "Correo electrónico", "Facultad", "Expediente"])
+        self.table.setHorizontalHeaderLabels(["Índice", "Nombres", "Apellidos", "Email", "Facultad", "Expediente"])
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
