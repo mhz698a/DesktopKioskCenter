@@ -175,11 +175,27 @@ class DatabaseTests(unittest.TestCase):
                     created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
                 )
             """)
+            connection.execute("""
+                CREATE TABLE internal_students (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    nombres TEXT NOT NULL,
+                    apellidos TEXT NOT NULL,
+                    facultad TEXT NOT NULL,
+                    expediente TEXT NOT NULL UNIQUE,
+                    created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+                )
+            """)
         upgraded = Database(old_path, self.legacy_dir)
         upgraded.initialize()
         with upgraded.connection() as connection:
-            columns = {row["name"] for row in connection.execute("PRAGMA table_info(external_users)")}
-        self.assertIn("email", columns)
+            external_columns = {
+                row["name"] for row in connection.execute("PRAGMA table_info(external_users)")
+            }
+            internal_columns = {
+                row["name"] for row in connection.execute("PRAGMA table_info(internal_students)")
+            }
+        self.assertIn("email", external_columns)
+        self.assertIn("email", internal_columns)
 
     def test_legacy_json_is_imported_once(self):
         student_file = self.legacy_dir / "internal_students.json"
