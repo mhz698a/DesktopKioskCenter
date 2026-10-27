@@ -152,6 +152,61 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(worker.status_code, 201)
         self.assertEqual(self.db.list_external_users()[0]["email"], "trabajador@example.com")
 
+    def test_post_health_records_heartbeat_by_remote_ip(self):
+        response = self.client.post(
+            "/api/v1/health",
+            json={
+                "action": "heartbeat",
+                "data": {"status": 2, "time_string": "00:00:01"},
+            },
+            environ_base={"REMOTE_ADDR": "192.168.1.22"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["status"], "ok")
+
+        heartbeat = self.db.get_kiosk_heartbeat("192.168.1.22")
+        self.assertIsNotNone(heartbeat)
+        self.assertEqual(heartbeat["status_code"], 2)
+        self.assertEqual(heartbeat["status_label"], "En uso")
+        self.assertEqual(heartbeat["time_string"], "00:00:01")
+
+        # La IP se identifica por el socket de origen, no por un campo del JSON.
+        self.assertIsNone(self.db.get_kiosk_heartbeat("10.0.0.50"))
+        self.assertEqual(
+            {item["status_code"]: item["label"] for item in self.db.list_kiosk_status_codes()},
+            {0: "Sin conexión", 1: "Disponible", 2: "En uso", 3: "Inactividad"},
+        )
+
+    def test_get_health_is_removed_and_invalid_heartbeat_is_rejected(self):
+        legacy_get = self.client.get("/api/v1/health")
+        self.assertEqual(legacy_get.status_code, 405)
+
+        invalid_status = self.client.post("/api/v1/health", json={
+            "action": "heartbeat", "data": {"status": 0, "time_string": "00:00:01"},
+        })
+        self.assertEqual(invalid_status.status_code, 400)
+
+        invalid_time = self.client.post("/api/v1/health", json={
+            "action": "heartbeat", "data": {"status": 1, "time_string": "0:0:1"},
+        })
+        self.assertEqual(invalid_time.status_code, 400)
+
+    def test_heartbeat_is_marked_offline_after_four_seconds(self):
+        self.db.record_kiosk_heartbeat(
+            client_ip="192.168.1.23",
+            status_code=2,
+            time_string="00:03:12",
+            last_seen_at=100.0,
+        )
+        unchanged = self.db.mark_stale_kiosks_offline(timeout_seconds=4, now=103.99)
+        self.assertEqual(unchanged, 0)
+        changed = self.db.mark_stale_kiosks_offline(timeout_seconds=4, now=104.0)
+        self.assertEqual(changed, 1)
+
+        heartbeat = self.db.get_kiosk_heartbeat("192.168.1.23")
+        self.assertEqual(heartbeat["status_code"], 0)
+        self.assertEqual(heartbeat["status_label"], "Sin conexión")
+
     def test_invalid_action_returns_400_json(self):
         response = self.client.post("/api/v1/users/register/alumno", json={
             "action": "wrong", "data": {},
