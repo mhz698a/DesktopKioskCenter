@@ -32,16 +32,17 @@ Si una fila de alumno tiene un expediente que ya existe, la restricción UNIQUE 
 | Campo | Uso |
 |---|---|
 | `id` | Clave primaria autoincremental; se muestra como índice en la tabla |
-| `nombres`, `apellidos` | Nombre del alumno |
+| `nombres`, `apellidos` | Datos descriptivos del alumno; no se utilizan para iniciar sesión |
+| `email` | Correo electrónico obligatorio, único entre todas las tablas de usuarios y usado como identificador principal |
 | `facultad` | Facultad elegida del catálogo UAQ |
-| `expediente` | Expediente numérico, único |
+| `expediente` | Expediente numérico, único y aceptado como identificador alternativo para alumnos |
 | `created_at` | Fecha de creación local |
 
 ### `external_users`
 
-Contiene `id`, `nombres`, `apellidos`, `email`, `tipo_usuario`, `universidad` y `created_at`. Email es obligatorio y único para todos los nuevos usuarios externos, trabajadores internos y público en general. Debe tener formato válido y la comparación de unicidad no distingue mayúsculas. El tipo de usuario determina si corresponde guardar una universidad. Para `Trabajador Interno` y `Público en general`, el backend limpia ese campo.
+Contiene `id`, `nombres`, `apellidos`, `email`, `tipo_usuario`, `universidad` y `created_at`. Email es obligatorio y único entre alumnos internos, estudiantes externos, trabajadores internos y público en general. Debe tener formato válido y la comparación de unicidad no distingue mayúsculas. El tipo de usuario determina si corresponde guardar una universidad. Para `Trabajador Interno` y `Público en general`, el backend limpia ese campo.
 
-Al abrir una base existente, `Database.initialize()` añade `email TEXT NOT NULL DEFAULT ''` a ambas tablas si la columna aún no existe, por lo que los registros anteriores conservan sus datos y reciben email vacío. Los registros heredados deben completarse con un email válido desde el panel de edición antes de poder actualizarlos para que puedan iniciar sesión también por email.
+Al abrir una base existente, `Database.initialize()` añade `email TEXT NOT NULL DEFAULT ''` a ambas tablas si la columna aún no existe, por lo que los registros anteriores conservan sus datos y reciben email vacío. Los registros heredados deben completarse con un email válido desde su panel de edición. Los índices y triggers de SQLite impiden reutilizar un correo entre ambas tablas.
 
 ### `received_logins` — Logs de peticiones
 
