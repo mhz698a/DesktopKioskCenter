@@ -81,7 +81,7 @@ def create_api_app(database: Database) -> Flask:
         identifier = str(data.get("identificador", data.get("usuario", data.get("email", ""))) or "").strip()
         password = str(data.get("contrasena", "") or "")
         if not identifier or not password:
-            return response(False, "Los campos «usuario» y «contrasena» son obligatorios.", 400)
+            return response(False, "El correo electrónico/expediente y la contraseña son obligatorios.", 400)
 
         user = database.find_registered_user(identifier)
         if user is None:
@@ -131,7 +131,7 @@ def create_api_app(database: Database) -> Flask:
             logger.exception("Falló el registro de un alumno.")
             return response(False, "No se pudo completar el registro por un error de almacenamiento.", 500)
 
-        safe_request_log(expediente, "Alumno interno", "registro_alumno", "registrado", STUDENT_REGISTERED_MESSAGE)
+        safe_request_log(email, "Alumno interno", "registro_alumno", "registrado", STUDENT_REGISTERED_MESSAGE)
         safe_access_log({**record, "tipo_usuario": "Alumno interno"}, fallback_identifier=expediente)
         return response(True, STUDENT_REGISTERED_MESSAGE, 201)
 
