@@ -36,7 +36,7 @@ La estructura de tablas, la migración, las consultas de ejemplo y las instrucci
 ## Pestañas
 
 - **Equipos**: administra los kioscos y muestra su estado mediante heartbeats; la tabla se actualiza cada segundo.
-- **Alumnos Internos Registrados**: guarda nombres, apellidos, facultad y expediente.
+- **Alumnos Internos Registrados**: guarda nombres, apellidos, correo electrónico, facultad y expediente. El correo debe ser único entre todos los usuarios.
 - **Usuarios Externos Registrados**: guarda nombres, apellidos, email, tipo de usuario y, cuando corresponda, universidad.
 - **Logs de peticiones**: consulta solicitudes REST recibidas y permite contar totales por tipo y resultado.
 - **Logs de accesos**: consulta accesos permitidos y permite contar totales por tipo de usuario y equipo.
