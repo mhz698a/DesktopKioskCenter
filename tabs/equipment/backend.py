@@ -1,15 +1,17 @@
 import ipaddress
 
 from PyQt6.QtCore import QObject, QTimer
-from PyQt6.QtWidgets import QDialog, QMessageBox
+from PyQt6.QtWidgets import (
+    QDialog, QDialogButtonBox, QFormLayout, QLineEdit, QMessageBox, QVBoxLayout,
+)
 
-from action_req import ActionWorker, ReceiveIPWorker
+from action_req import ActionWorker, BulkPCControlWorker, PCControlWorker, ReceiveIPWorker
 from tabs.equipment.bulk_dlg_add import KioskDialog
 from const import DEFAULT_TOKEN, Kiosk
 from database import Database
 from tabs.equipment.bulk_dialog import BulkEquipmentDialog
 from utils import load_kiosks, save_kiosks
-from css.cQDialogs import cQMsgBox
+from css.cQDialogs import cQDlg, cQMsgBox
 
 class EquipmentBackend(QObject):
     def __init__(self, view, threadpool, parent=None, database=None):
@@ -39,6 +41,20 @@ class EquipmentBackend(QObject):
         self.view.selection_changed.connect(self.select_equipment)
         self.view.lock_requested.connect(lambda: self.send_selected_action("lock"))
         self.view.unlock_requested.connect(lambda: self.send_selected_action("unlock"))
+        self.view.close_requested.connect(self.close_selected_kiosk)
+        self.view.shutdown_pc_requested.connect(
+            lambda: self.send_selected_pc_control("shutdown-pc")
+        )
+        self.view.restart_pc_requested.connect(
+            lambda: self.send_selected_pc_control("restart-pc")
+        )
+        self.view.shutdown_all_requested.connect(
+            lambda: self.send_bulk_pc_control("shutdown-pc")
+        )
+        self.view.restart_all_requested.connect(
+            lambda: self.send_bulk_pc_control("restart-pc")
+        )
+        self.view.admin_credentials_requested.connect(self.show_admin_credentials)
         self.view.delete_requested.connect(self.delete_selected)
         self.view.send_ip_requested.connect(self.send_server_ip_to_selected)
         self.view.save_requested.connect(self.save_selected)
@@ -288,6 +304,126 @@ class EquipmentBackend(QObject):
         )
         self.threadpool.start(worker)
 
+    def show_admin_credentials(self):
+        """Muestra las credenciales locales del menú de administración del kiosco."""
+        if self._closing:
+            return
+
+        dialog = cQDlg(self.view)
+        dialog.setWindowTitle("Credencial del administrador")
+        dialog.setMinimumWidth(420)
+
+        username = QLineEdit("%admin7085%", dialog)
+        username.setReadOnly(True)
+        username.setToolTip("Selecciona el texto para copiarlo.")
+        password = QLineEdit(".%admin7085%", dialog)
+        password.setReadOnly(True)
+        password.setToolTip("Selecciona el texto para copiarlo.")
+
+        form = QFormLayout()
+        form.addRow("Usuario:", username)
+        form.addRow("Contraseña:", password)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close, dialog)
+        buttons.rejected.connect(dialog.accept)
+
+        layout = QVBoxLayout(dialog)
+        layout.addLayout(form)
+        layout.addWidget(buttons)
+        dialog.exec()
+
+    def close_selected_kiosk(self):
+        """Pide confirmación explícita antes de terminar el proceso del kiosco."""
+        index = self.selected_index
+        if self._closing or index is None or not 0 <= index < len(self.kiosks):
+            return
+
+        kiosk = self.kiosks[index]
+        answer = cQMsgBox.question(
+            self.view,
+            "Cerrar Kiosko",
+            "Esta accion cerrara el kiosko activo y no podras comunicarte con el ¿Deseas continuar?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+
+        worker = ActionWorker(
+            kiosk, "close", self._base_url(kiosk), self._auth_headers()
+        )
+        self._workers.add(worker)
+        worker.signals.success.connect(self.on_action_success)
+        worker.signals.error.connect(self.on_action_error)
+        worker.signals.finished.connect(
+            lambda *_args, current=worker: self._forget_worker(current)
+        )
+        self.threadpool.start(worker)
+
+    def send_selected_pc_control(self, action):
+        index = self.selected_index
+        if self._closing or index is None or not 0 <= index < len(self.kiosks):
+            return
+        if action not in ("shutdown-pc", "restart-pc"):
+            return
+
+        kiosk = self.kiosks[index]
+        verb = "apagar" if action == "shutdown-pc" else "reiniciar"
+        answer = cQMsgBox.question(
+            self.view,
+            "Confirmar " + verb,
+            f"¿Deseas {verb} Windows en «{kiosk.name}»? "
+            "Se cerrarán las aplicaciones del equipo y podrías perder cambios sin guardar.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+
+        worker = PCControlWorker(
+            kiosk, action, self._base_url(kiosk), self._auth_headers()
+        )
+        self._workers.add(worker)
+        worker.signals.success.connect(self.on_action_success)
+        worker.signals.error.connect(self.on_action_error)
+        worker.signals.finished.connect(
+            lambda *_args, current=worker: self._forget_worker(current)
+        )
+        self.threadpool.start(worker)
+
+    def send_bulk_pc_control(self, action):
+        if self._closing or action not in ("shutdown-pc", "restart-pc"):
+            return
+        if not self.kiosks:
+            cQMsgBox.information(
+                self.view, "Sin equipos", "No hay equipos configurados para esta operación."
+            )
+            return
+
+        verb = "apagar" if action == "shutdown-pc" else "reiniciar"
+        answer = cQMsgBox.question(
+            self.view,
+            f"{verb.capitalize()} todos los equipos",
+            f"Se enviará una solicitud para {verb} Windows a los "
+            f"{len(self.kiosks)} equipos configurados. "
+            "Los equipos que no respondan se reportarán como fallidos. ¿Deseas continuar?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+
+        worker = BulkPCControlWorker(
+            list(self.kiosks), action, self._auth_headers(), max_workers=8
+        )
+        self._workers.add(worker)
+        worker.signals.success.connect(self.on_action_success)
+        worker.signals.error.connect(self.on_action_error)
+        worker.signals.finished.connect(
+            lambda *_args, current=worker: self._forget_worker(current)
+        )
+        self.threadpool.start(worker)
+
     def send_server_ip_to_selected(self):
         index = self.selected_index
         if self._closing or index is None or not 0 <= index < len(self.kiosks):
@@ -328,6 +464,10 @@ class EquipmentBackend(QObject):
         self.threadpool.start(worker)
 
     def on_receive_ip_success(self, title, message):
+        if not self._closing:
+            cQMsgBox.information(self.view, title, message)
+
+    def on_action_success(self, title, message):
         if not self._closing:
             cQMsgBox.information(self.view, title, message)
 
