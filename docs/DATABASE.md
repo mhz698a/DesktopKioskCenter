@@ -41,7 +41,7 @@ Si una fila de alumno tiene un expediente que ya existe, la restricción UNIQUE 
 
 Contiene `id`, `nombres`, `apellidos`, `email`, `tipo_usuario`, `universidad` y `created_at`. Email es obligatorio y único para todos los nuevos usuarios externos, trabajadores internos y público en general. Debe tener formato válido y la comparación de unicidad no distingue mayúsculas. El tipo de usuario determina si corresponde guardar una universidad. Para `Trabajador Interno` y `Público en general`, el backend limpia ese campo.
 
-Al abrir una base existente, `Database.initialize()` añade `email TEXT NOT NULL DEFAULT ''` si la columna aún no existe, por lo que los registros anteriores conservan sus datos y reciben email vacío. Los registros heredados deben completarse con un email válido desde el panel de edición antes de poder guardarlos de nuevo.
+Al abrir una base existente, `Database.initialize()` añade `email TEXT NOT NULL DEFAULT ''` a ambas tablas si la columna aún no existe, por lo que los registros anteriores conservan sus datos y reciben email vacío. Los registros heredados deben completarse con un email válido desde el panel de edición antes de poder actualizarlos para que puedan iniciar sesión también por email.
 
 ### `received_logins` — Logs de peticiones
 
@@ -87,6 +87,7 @@ Todo el acceso SQL está centralizado en el archivo raíz `database.py`:
 - `record_received_login(...)`: permite que la futura API central registre una solicitud recibida.
 - `record_kiosk_heartbeat(...)` y `mark_stale_kiosks_offline(...)`: actualizan el estado de la PC y aplican el timeout de cuatro segundos.
 - `update_kiosk_status_label(status_code, label)`: cambia la etiqueta visible de un estado existente sin cambiar su código.
+- `find_registered_user(identifier)`: busca primero por email en ambas tablas de usuarios y después por expediente para alumnos internos; no busca por nombres.
 - `count_received_logins()`: hace el conteo directamente en SQLite.
 
 La interfaz usa módulos separados: `tabs/<pestaña>/build.py` construye widgets y emite señales; `tabs/<pestaña>/backend.py` conecta esas señales con la clase `Database`. Así se pueden probar las consultas sin iniciar la interfaz gráfica.
