@@ -12,6 +12,7 @@ import json
 import logging
 import re
 import sqlite3
+import time
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -74,6 +75,23 @@ class Database:
                     created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
                 );
 
+                CREATE TABLE IF NOT EXISTS kiosk_status_codes (
+                    status_code INTEGER PRIMARY KEY,
+                    label TEXT NOT NULL UNIQUE
+                );
+
+                CREATE TABLE IF NOT EXISTS kiosk_heartbeats (
+                    client_ip TEXT PRIMARY KEY,
+                    kiosk_name TEXT NOT NULL DEFAULT '',
+                    status_code INTEGER NOT NULL REFERENCES kiosk_status_codes(status_code),
+                    time_string TEXT NOT NULL DEFAULT '00:00:00',
+                    last_seen_at REAL NOT NULL,
+                    updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_kiosk_heartbeats_last_seen
+                    ON kiosk_heartbeats(last_seen_at);
+
                 CREATE TABLE IF NOT EXISTS received_logins (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     received_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
@@ -109,6 +127,18 @@ class Database:
                     applied_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
                 );
                 """
+            )
+
+            # Catálogo mantenible: los nombres pueden actualizarse en SQLite sin cambiar la UI.
+            connection.executemany(
+                """INSERT OR IGNORE INTO kiosk_status_codes (status_code, label)
+                   VALUES (?, ?)""",
+                (
+                    (0, "Sin conexión"),
+                    (1, "Disponible"),
+                    (2, "En uso"),
+                    (3, "Inactividad"),
+                ),
             )
 
             # Migración incremental para bases de datos anteriores al campo Email.
@@ -219,6 +249,105 @@ class Database:
     @staticmethod
     def _as_dicts(rows):
         return [dict(row) for row in rows]
+
+    def list_kiosk_status_codes(self) -> list[dict]:
+        """Devuelve el catálogo de estados, ordenado por código."""
+        with self.connection() as connection:
+            rows = connection.execute(
+                "SELECT status_code, label FROM kiosk_status_codes ORDER BY status_code"
+            ).fetchall()
+            return self._as_dicts(rows)
+
+    def get_kiosk_status_label(self, status_code: int) -> str:
+        """Resuelve una etiqueta desde el catálogo mantenido en SQLite."""
+        with self.connection() as connection:
+            row = connection.execute(
+                "SELECT label FROM kiosk_status_codes WHERE status_code = ?",
+                (int(status_code),),
+            ).fetchone()
+            return str(row["label"]) if row else str(status_code)
+
+    def record_kiosk_heartbeat(
+        self,
+        *,
+        client_ip: str,
+        status_code: int,
+        time_string: str,
+        kiosk_name: str = "",
+        last_seen_at: float | None = None,
+    ) -> None:
+        """Inserta o actualiza el heartbeat más reciente recibido para una IP."""
+        if isinstance(status_code, bool) or int(status_code) not in (1, 2, 3):
+            raise ValueError("El estado de heartbeat debe ser 1, 2 o 3.")
+        client_ip = str(client_ip or "").strip()
+        if not client_ip:
+            raise ValueError("La IP de origen es obligatoria.")
+        time_string = str(time_string or "").strip()
+        if not time_string:
+            raise ValueError("time_string es obligatorio.")
+        observed_at = time.time() if last_seen_at is None else float(last_seen_at)
+
+        with self.connection() as connection:
+            connection.execute(
+                """
+                INSERT INTO kiosk_heartbeats
+                    (client_ip, kiosk_name, status_code, time_string, last_seen_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, datetime('now', 'localtime'))
+                ON CONFLICT(client_ip) DO UPDATE SET
+                    kiosk_name = excluded.kiosk_name,
+                    status_code = excluded.status_code,
+                    time_string = excluded.time_string,
+                    last_seen_at = excluded.last_seen_at,
+                    updated_at = datetime('now', 'localtime')
+                """,
+                (client_ip, str(kiosk_name or "").strip()[:200], int(status_code), time_string, observed_at),
+            )
+
+    def mark_stale_kiosks_offline(
+        self, timeout_seconds: float = 4.0, *, now: float | None = None
+    ) -> int:
+        """Pasa a estado 0 los clientes cuyo último heartbeat venció."""
+        current_time = time.time() if now is None else float(now)
+        cutoff = current_time - max(0.0, float(timeout_seconds))
+        with self.connection() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE kiosk_heartbeats
+                SET status_code = 0, updated_at = datetime('now', 'localtime')
+                WHERE last_seen_at <= ? AND status_code <> 0
+                """,
+                (cutoff,),
+            )
+            return int(cursor.rowcount)
+
+    def list_kiosk_heartbeats(self) -> list[dict]:
+        """Devuelve el último estado recibido de cada IP con la etiqueta del catálogo."""
+        with self.connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT h.client_ip, h.kiosk_name, h.status_code,
+                       s.label AS status_label, h.time_string, h.last_seen_at, h.updated_at
+                FROM kiosk_heartbeats AS h
+                JOIN kiosk_status_codes AS s ON s.status_code = h.status_code
+                ORDER BY h.client_ip
+                """
+            ).fetchall()
+            return self._as_dicts(rows)
+
+    def get_kiosk_heartbeat(self, client_ip: str) -> dict | None:
+        """Obtiene el estado registrado para una IP o None si nunca hubo heartbeat."""
+        with self.connection() as connection:
+            row = connection.execute(
+                """
+                SELECT h.client_ip, h.kiosk_name, h.status_code,
+                       s.label AS status_label, h.time_string, h.last_seen_at, h.updated_at
+                FROM kiosk_heartbeats AS h
+                JOIN kiosk_status_codes AS s ON s.status_code = h.status_code
+                WHERE h.client_ip = ?
+                """,
+                (str(client_ip or "").strip(),),
+            ).fetchone()
+            return dict(row) if row else None
 
     def list_internal_students(self) -> list[dict]:
         """Devuelve los alumnos internos en orden de alta."""
