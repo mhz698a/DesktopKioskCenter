@@ -4,9 +4,25 @@
 
 El servidor REST se inicia junto con la aplicación. Por defecto escucha en `0.0.0.0:7085`; configura `DESKTOPKIOSKCENTER_API_HOST` o `DESKTOPKIOSKCENTER_API_PORT` para cambiarlo.
 
+Los clientes envían un heartbeat cada segundo a `POST /api/v1/health`:
+
 ```http
-GET /api/v1/health
+POST /api/v1/health
+Content-Type: application/json
+X-Kiosk-Name: PC-Recepcion
+
+{
+  "action": "heartbeat",
+  "data": {
+    "status": 2,
+    "time_string": "00:00:01"
+  }
+}
 ```
+
+`data.status` es un entero del catálogo SQLite: `0 = Sin conexión`, `1 = Disponible`, `2 = En uso`, `3 = Inactividad`. El cliente solo puede reportar `1`, `2` o `3`; el servidor asigna el estado `0` cuando deja de recibir heartbeats durante 4 segundos.
+
+La IP del cliente no se envía en el JSON. El servidor usa la IP remota de la conexión HTTP para actualizar el estado de ese equipo. Cada heartbeat actualiza el registro de `kiosk_heartbeats`, incluido el estado, `time_string` y la última hora de recepción. Un monitor en segundo plano marca los heartbeats vencidos como `Sin conexión`, sin esperar otra petición.
 
 Todas las rutas POST reciben JSON. Las respuestas de las rutas funcionales contienen `unlocked` y `message`.
 
