@@ -85,6 +85,8 @@ Todo el acceso SQL está centralizado en el archivo raíz `database.py`:
 - `update_...` y `delete_...`: guardan o eliminan los registros seleccionados en las tablas de alumnos y usuarios.
 - `record_access_log(...)`: añade un evento de acceso; `count_access_logs()` calcula los totales directamente en SQLite.
 - `record_received_login(...)`: permite que la futura API central registre una solicitud recibida.
+- `record_kiosk_heartbeat(...)` y `mark_stale_kiosks_offline(...)`: actualizan el estado de la PC y aplican el timeout de cuatro segundos.
+- `update_kiosk_status_label(status_code, label)`: cambia la etiqueta visible de un estado existente sin cambiar su código.
 - `count_received_logins()`: hace el conteo directamente en SQLite.
 
 La interfaz usa módulos separados: `tabs/<pestaña>/build.py` construye widgets y emite señales; `tabs/<pestaña>/backend.py` conecta esas señales con la clase `Database`. Así se pueden probar las consultas sin iniciar la interfaz gráfica.
