@@ -89,7 +89,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.access_logs_tab, "Logs de accesos")
 
         self.equipment_backend = EquipmentBackend(
-            self.equipment_tab, self.threadpool, self
+            self.equipment_tab, self.threadpool, self, database=self.database
         )
         self.internal_students_backend = InternalStudentsBackend(
             self.internal_students_tab, self.database, self
