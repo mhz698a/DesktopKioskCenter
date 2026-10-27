@@ -1,9 +1,11 @@
 """Pruebas del contrato REST sin abrir sockets TCP."""
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
 
-from api_server import create_api_app
+from api_server import ApiServer, create_api_app
 from database import Database
 
 
@@ -204,6 +206,33 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(changed, 1)
 
         heartbeat = self.db.get_kiosk_heartbeat("192.168.1.23")
+        self.assertEqual(heartbeat["status_code"], 0)
+        self.assertEqual(heartbeat["status_label"], "Sin conexión")
+
+    def test_server_monitor_marks_client_offline_without_another_request(self):
+        client_ip = "192.168.1.24"
+        self.db.record_kiosk_heartbeat(
+            client_ip=client_ip,
+            status_code=3,
+            time_string="00:03:00",
+            last_seen_at=time.time() - 4.5,
+        )
+
+        server = ApiServer(self.db, host="127.0.0.1", port=0)
+        monitor = threading.Thread(target=server._monitor_stale_heartbeats)
+        monitor.start()
+        try:
+            deadline = time.monotonic() + 2.0
+            while time.monotonic() < deadline:
+                heartbeat = self.db.get_kiosk_heartbeat(client_ip)
+                if heartbeat and heartbeat["status_code"] == 0:
+                    break
+                time.sleep(0.05)
+        finally:
+            server._heartbeat_monitor_stop.set()
+            monitor.join(timeout=1.0)
+
+        heartbeat = self.db.get_kiosk_heartbeat(client_ip)
         self.assertEqual(heartbeat["status_code"], 0)
         self.assertEqual(heartbeat["status_label"], "Sin conexión")
 
