@@ -48,6 +48,8 @@ La estructura de tablas, la migración, las consultas de ejemplo y las instrucci
 - `POST /api/v1/users/register/externo`
 - `POST /api/v1/health` (heartbeat de cada cliente, cada segundo)
 
+El inicio de sesión se realiza por correo electrónico; para alumnos internos también se admite el expediente. Los nombres no se usan como identificador. El correo es obligatorio al registrar cualquier tipo de usuario y debe ser único en toda la base de datos.
+
 La API se inicia junto con la interfaz, por defecto en el puerto TCP 7085. El puerto se puede cambiar con `DESKTOPKIOSKCENTER_API_PORT`. Los heartbeats se guardan en SQLite; después de cuatro segundos sin recibir uno, el equipo queda como `Sin conexión`. Consulta [docs/API.md](docs/API.md) para el contrato.
 
 ## Seguridad y alcance
