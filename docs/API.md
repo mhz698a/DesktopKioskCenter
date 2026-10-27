@@ -35,7 +35,7 @@ Todas las rutas POST reciben JSON. Las respuestas de las rutas funcionales conti
 }
 ```
 
-El campo `data.usuario` puede ser el expediente de un alumno interno o el email de un usuario externo. La búsqueda de email ignora mayúsculas/minúsculas. Si no existe, responde HTTP 401 con el mensaje solicitado. Si existe, responde HTTP 200 con `unlocked: true`.
+El campo `data.usuario` (o `data.identificador`) debe contener el correo electrónico del usuario o, para alumnos internos, el expediente. El servidor busca primero por email en todas las categorías de usuario, sin distinguir mayúsculas y minúsculas, y después por expediente. Los nombres no son identificadores de acceso. Si no existe, responde HTTP 401. Si existe, responde HTTP 200 con `unlocked: true`.
 
 **Limitación importante:** los payloads de registro de esta especificación no contienen contraseña y SQLite no almacena credenciales. Actualmente la ruta comprueba que el usuario esté registrado y exige que el campo `contrasena` esté presente, pero no verifica que su valor sea correcto. Para utilizar el endpoint como autenticación segura, se necesita definir cómo registrar/verificar credenciales y almacenar hashes de contraseña. La contraseña nunca se incluye en logs.
 
@@ -47,13 +47,15 @@ El campo `data.usuario` puede ser el expediente de un alumno interno o el email 
   "data": {
     "nombres": "Example Example",
     "apellidos": "Example Prueba",
+    "email": "alumno@example.com",
     "facultad": "Facultad de Filosofía",
     "expediente": "123456"
   }
 }
 ```
 
-- Expediente duplicado: HTTP 409, `unlocked: false` y el mensaje indicado.
+- Correo electrónico obligatorio, válido y único entre alumnos internos y usuarios externos; los duplicados devuelven HTTP 409.
+- Expediente duplicado: HTTP 409, `unlocked: false`.
 - Registro nuevo: HTTP 201, `unlocked: true` y `Registro de alumno completado con éxito.`.
 - Nombres y apellidos admiten letras y espacios; expediente solo dígitos.
 
@@ -88,7 +90,7 @@ Público en general:
 }
 ```
 
-El campo `tipo-usuario` debe indicar el tipo real de usuario: `estudiante`/`Estudiante Externo`, `Trabajador Interno` o `Público en general`. **Email es obligatorio para los tres tipos externos**, debe tener un formato válido y no puede estar registrado previamente. La universidad es obligatoria para estudiantes externos y no aplica a trabajadores internos ni público en general.
+El campo `tipo-usuario` debe indicar el tipo real de usuario: `estudiante`/`Estudiante Externo`, `Trabajador Interno` o `Público en general`. **Email es obligatorio para todos los tipos de usuario** (alumnos internos, estudiantes externos, trabajadores internos y público en general), debe tener un formato válido y no puede estar registrado previamente en ninguna de las tablas de usuarios. La universidad es obligatoria para estudiantes externos y no aplica a trabajadores internos ni público en general.
 
 - Registro duplicado: HTTP 409, `unlocked: false` y el mensaje indicado.
 - Registro nuevo: HTTP 201, `unlocked: true` y `Registro de usuario completado con éxito.`.
