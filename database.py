@@ -514,7 +514,7 @@ class Database:
         email = str(email or "").strip()
         if not email:
             raise ValueError("El email es obligatorio para todos los usuarios externos.")
-        if not re.fullmatch(r"[^@\\s]+@[^@\\s]+\\.[^@\\s]+", email):
+        if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
             raise ValueError("La dirección de email no es válida.")
         return email
 
