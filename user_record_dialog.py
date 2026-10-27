@@ -192,7 +192,7 @@ class UserRecordDialog(cQDlg):
                 if not value:
                     cQMsgBox.warning(
                         self, "Validación",
-                        "El campo «Email» es obligatorio para todos los usuarios externos.",
+                        "El correo electrónico es obligatorio para todos los usuarios.",
                     )
                     self.inputs[key].setFocus()
                     return
