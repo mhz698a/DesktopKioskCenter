@@ -53,7 +53,7 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(self.db.list_internal_students()[0]["email"], "ana@example.com")
 
         with self.assertRaises(sqlite3.IntegrityError):
-            self.db.add_internal_student(record)
+            self.db.add_internal_student({**record, "email": "otra@example.com"})
 
     def test_email_is_unique_across_internal_and_external_users(self):
         self.db.add_internal_student({
