@@ -267,6 +267,18 @@ class Database:
             ).fetchone()
             return str(row["label"]) if row else str(status_code)
 
+    def update_kiosk_status_label(self, status_code: int, label: str) -> bool:
+        """Actualiza una etiqueta del catálogo sin cambiar el código de estado."""
+        normalized_label = str(label or "").strip()
+        if not normalized_label:
+            raise ValueError("La etiqueta del estado no puede estar vacía.")
+        with self.connection() as connection:
+            cursor = connection.execute(
+                "UPDATE kiosk_status_codes SET label = ? WHERE status_code = ?",
+                (normalized_label, int(status_code)),
+            )
+            return cursor.rowcount > 0
+
     def record_kiosk_heartbeat(
         self,
         *,
