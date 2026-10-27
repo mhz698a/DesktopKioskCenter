@@ -145,8 +145,12 @@ class EquipmentTab(QWidget):
     @staticmethod
     def state_label(state):
         return {
-            "locked": "Bloqueado",
-            "unlocked": "Desbloqueado",
+            0: "Sin conexión",
+            1: "Disponible",
+            2: "En uso",
+            3: "Inactividad",
+            "locked": "Disponible",
+            "unlocked": "En uso",
             "offline": "Sin conexión",
             "error": "Error",
         }.get(state, state)
