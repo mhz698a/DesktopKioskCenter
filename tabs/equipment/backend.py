@@ -54,10 +54,6 @@ class EquipmentBackend(QObject):
     @staticmethod
     def _state_label(state):
         return {
-            0: "Sin conexión",
-            1: "Disponible",
-            2: "En uso",
-            3: "Inactividad",
             "locked": "Disponible",
             "unlocked": "En uso",
             "offline": "Sin conexión",
