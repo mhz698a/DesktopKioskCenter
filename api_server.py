@@ -12,8 +12,9 @@ from database import Database
 
 logger = logging.getLogger(__name__)
 
-LOGIN_UNKNOWN_MESSAGE = "El usuario no se ha registrado todavía. Por favor, realice su registro primero."
-DUPLICATE_MESSAGE = "El usuario ya se encuentra registrado con este expediente. Inicie sesión."
+LOGIN_UNKNOWN_MESSAGE = "El correo electrónico o expediente no está registrado. Realice su registro primero."
+DUPLICATE_MESSAGE = "El correo electrónico ya se encuentra registrado. Inicie sesión."
+DUPLICATE_STUDENT_MESSAGE = "El correo electrónico o expediente ya se encuentra registrado. Inicie sesión."
 STUDENT_REGISTERED_MESSAGE = "Registro de alumno completado con éxito."
 EXTERNAL_REGISTERED_MESSAGE = "Registro de usuario completado con éxito."
 EMAIL_RE = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
@@ -76,7 +77,8 @@ def create_api_app(database: Database) -> Flask:
         data, error = parse_payload("unlock_login")
         if error:
             return error
-        identifier = str(data.get("usuario", "") or "").strip()
+        # El identificador es email o expediente; nunca se busca por nombres.
+        identifier = str(data.get("identificador", data.get("usuario", data.get("email", ""))) or "").strip()
         password = str(data.get("contrasena", "") or "")
         if not identifier or not password:
             return response(False, "Los campos «usuario» y «contrasena» son obligatorios.", 400)
@@ -97,6 +99,7 @@ def create_api_app(database: Database) -> Flask:
             return error
         names = str(data.get("nombres", "") or "").strip()
         surnames = str(data.get("apellidos", "") or "").strip()
+        email = str(data.get("email", "") or "").strip()
         faculty = str(data.get("facultad", "") or "").strip()
         expediente = str(data.get("expediente", "") or "").strip()
         if (
@@ -106,13 +109,24 @@ def create_api_app(database: Database) -> Flask:
             or not all(c.isalpha() or c == " " for c in surnames)
         ):
             return response(False, "Los datos del alumno son inválidos o están incompletos.", 400)
+        if not email or not EMAIL_RE.fullmatch(email):
+            return response(False, "Ingresa un correo electrónico válido; es obligatorio para registrar al alumno.", 400)
 
-        record = {"nombres": names, "apellidos": surnames, "facultad": faculty, "expediente": expediente}
+        record = {
+            "nombres": names,
+            "apellidos": surnames,
+            "email": email,
+            "facultad": faculty,
+            "expediente": expediente,
+        }
+        if database.email_exists(email):
+            safe_request_log(email, "Alumno interno", "registro_alumno", "duplicado", DUPLICATE_STUDENT_MESSAGE)
+            return response(False, DUPLICATE_STUDENT_MESSAGE, 409)
         try:
             database.add_internal_student(record)
         except sqlite3.IntegrityError:
-            safe_request_log(expediente, "Alumno interno", "registro_alumno", "duplicado", DUPLICATE_MESSAGE)
-            return response(False, DUPLICATE_MESSAGE, 409)
+            safe_request_log(email, "Alumno interno", "registro_alumno", "duplicado", DUPLICATE_STUDENT_MESSAGE)
+            return response(False, DUPLICATE_STUDENT_MESSAGE, 409)
         except sqlite3.Error:
             logger.exception("Falló el registro de un alumno.")
             return response(False, "No se pudo completar el registro por un error de almacenamiento.", 500)
