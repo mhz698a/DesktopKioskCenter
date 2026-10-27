@@ -55,6 +55,21 @@ Guarda un evento de acceso con fecha y hora, equipo, nombres, apellidos, expedie
 
 Las pestañas **Alumnos Internos Registrados** y **Usuarios Externos Registrados** disponen de un panel lateral para editar el registro seleccionado. Los cambios se guardan mediante los métodos `update_...`; las acciones de eliminación usan `delete_...` y solicitan confirmación. **Revertir Cambios** restaura los valores de la selección actual.
 
+### `kiosk_status_codes` — Catálogo de estados
+
+Es la tabla de referencia de los estados de los equipos. `status_code` es la clave y `label` es la etiqueta que se muestra en la UI. La inicialización siembra los cuatro valores predeterminados con `INSERT OR IGNORE`, por lo que las etiquetas se pueden mantener en SQLite sin hardcodearlas en la interfaz.
+
+| Código | Etiqueta predeterminada |
+|---:|---|
+| 0 | Sin conexión |
+| 1 | Disponible |
+| 2 | En uso |
+| 3 | Inactividad |
+
+### `kiosk_heartbeats` — Último estado recibido por equipo
+
+Cada IP de origen tiene un registro con clave primaria `client_ip`, la referencia `status_code` al catálogo, `time_string` y la marca de tiempo `last_seen_at`. Cada petición heartbeat hace un upsert de la fila correspondiente. El servidor utiliza `request.remote_addr`; no espera la IP dentro del JSON. Cuando pasan 4 segundos sin un heartbeat, un monitor del servicio cambia el código a 0 sin depender de nuevas peticiones.
+
 ### `schema_migrations`
 
 Registra migraciones de datos ya ejecutadas. Esto hace explícito y revisable el proceso de actualización de esquema.
@@ -83,7 +98,11 @@ SELECT 'internal_students' AS tabla, COUNT(*) AS total FROM internal_students
 UNION ALL
 SELECT 'external_users', COUNT(*) FROM external_users
 UNION ALL
-SELECT 'received_logins', COUNT(*) FROM received_logins;
+SELECT 'received_logins', COUNT(*) FROM received_logins
+UNION ALL
+SELECT 'kiosk_status_codes', COUNT(*) FROM kiosk_status_codes
+UNION ALL
+SELECT 'kiosk_heartbeats', COUNT(*) FROM kiosk_heartbeats;
 ```
 
 Ver los últimos eventos recibidos:
