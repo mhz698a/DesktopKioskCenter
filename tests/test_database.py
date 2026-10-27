@@ -23,6 +23,23 @@ class DatabaseTests(unittest.TestCase):
     def tearDown(self):
         self.temp_dir.cleanup()
 
+    def test_kiosk_status_catalog_is_seeded_and_maintainable(self):
+        labels = {
+            item["status_code"]: item["label"]
+            for item in self.db.list_kiosk_status_codes()
+        }
+        self.assertEqual(labels, {
+            0: "Sin conexión",
+            1: "Disponible",
+            2: "En uso",
+            3: "Inactividad",
+        })
+
+        self.assertTrue(self.db.update_kiosk_status_label(2, "En uso activo"))
+        self.assertEqual(self.db.get_kiosk_status_label(2), "En uso activo")
+        with self.assertRaises(ValueError):
+            self.db.update_kiosk_status_label(2, "   ")
+
     def test_internal_student_is_saved_and_expediente_is_unique(self):
         record = {
             "nombres": "Ana",
