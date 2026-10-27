@@ -26,6 +26,7 @@ class ApiTests(unittest.TestCase):
             "data": {
                 "nombres": "Example Example",
                 "apellidos": "Example Prueba",
+                "email": "alumno@example.com",
                 "facultad": "Facultad de Filosofía",
                 "expediente": "123456",
             },
@@ -48,8 +49,44 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(duplicate.status_code, 409)
         self.assertEqual(duplicate.get_json(), {
             "unlocked": False,
-            "message": "El usuario ya se encuentra registrado con este expediente. Inicie sesión.",
+            "message": "El correo electrónico o expediente ya se encuentra registrado. Inicie sesión.",
         })
+
+    def test_student_registration_email_must_be_unique_across_user_types(self):
+        self.db.add_external_user({
+            "nombres": "Extern", "apellidos": "Ejemplo",
+            "email": "ocupado@example.com", "tipo_usuario": "Público en general",
+            "universidad": "",
+        })
+        response = self.client.post("/api/v1/users/register/alumno", json={
+            "action": "registro_alumno",
+            "data": {
+                "nombres": "Alumno", "apellidos": "Nuevo",
+                "email": "OCUPADO@example.com",
+                "facultad": "Facultad de Informática", "expediente": "202020",
+            },
+        })
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(self.db.list_internal_students(), [])
+
+    def test_student_registration_requires_valid_email(self):
+        missing = self.client.post("/api/v1/users/register/alumno", json={
+            "action": "registro_alumno",
+            "data": {
+                "nombres": "Alumno", "apellidos": "Nuevo",
+                "facultad": "Facultad de Informática", "expediente": "303030",
+            },
+        })
+        self.assertEqual(missing.status_code, 400)
+        invalid = self.client.post("/api/v1/users/register/alumno", json={
+            "action": "registro_alumno",
+            "data": {
+                "nombres": "Alumno", "apellidos": "Nuevo",
+                "email": "no-es-email",
+                "facultad": "Facultad de Informática", "expediente": "303030",
+            },
+        })
+        self.assertEqual(invalid.status_code, 400)
 
     def test_login_unknown_returns_401_and_registered_returns_200(self):
         payload = {"action": "unlock_login", "data": {"usuario": "123456", "contrasena": ".123456"}}
@@ -57,10 +94,11 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(unknown.status_code, 401)
         self.assertEqual(unknown.get_json(), {
             "unlocked": False,
-            "message": "El usuario no se ha registrado todavía. Por favor, realice su registro primero."
+            "message": "El correo electrónico o expediente no está registrado. Realice su registro primero."
         })
         self.db.add_internal_student({
             "nombres": "Example", "apellidos": "Prueba",
+            "email": "alumno@example.com",
             "facultad": "Facultad de Filosofía", "expediente": "123456",
         })
         registered = self.client.post("/api/v1/auth-client-pc/login", json=payload)
@@ -68,6 +106,13 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(registered.get_json(), {
             "unlocked": True, "message": "Sesión iniciada correctamente."
         })
+
+        email_login_internal = self.client.post("/api/v1/auth-client-pc/login", json={
+            "action": "unlock_login",
+            "data": {"usuario": "ALUMNO@example.com", "contrasena": ".ALUMNO@example.com"},
+        })
+        self.assertEqual(email_login_internal.status_code, 200)
+        self.assertTrue(email_login_internal.get_json()["unlocked"])
 
         self.db.add_external_user({
             "nombres": "Extern", "apellidos": "Example",
