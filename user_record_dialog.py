@@ -188,7 +188,7 @@ class UserRecordDialog(cQDlg):
             value = self._value(self.inputs[key])
 
             if key == "email":
-                # Email es obligatorio para cualquier tipo de usuario externo.
+                # Email es obligatorio para cualquier tipo de usuario.
                 if not value:
                     cQMsgBox.warning(
                         self, "Validación",
