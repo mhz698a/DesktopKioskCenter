@@ -1,296 +1,202 @@
-import os
-import sys
-import json
-from dataclasses import asdict, dataclass
-from pathlib import Path
+import ipaddress
+import socket
+import platform
 
-import requests
-from PyQt6.QtWidgets import (
-    QDialog, QHBoxLayout,
-    QMainWindow, QMessageBox, QPushButton, QTableWidget, 
-    QTableWidgetItem, QWidget
-)
-from PyQt6.QtCore import QTimer, QThreadPool
+import pywinstyles
+from PyQt6.QtCore import QDate, QTime, QTimer, QThreadPool, Qt
+from PyQt6.QtWidgets import QHBoxLayout, QLabel, QMainWindow, QTabWidget, QVBoxLayout, QWidget
 
-from action_req import ActionWorker
-from add_pc_dlg import KioskDialog
-from const import Kiosk
-from pollstatus import PollWorker
-from utils import load_kiosks, format_duration, save_kiosks
+from css.apply_qss import apply_css_sheet
+from database import Database
+from tabs.equipment.backend import EquipmentBackend
+from tabs.equipment.build import EquipmentTab
+from tabs.external_users.backend import ExternalUsersBackend
+from tabs.external_users.build import ExternalUsersTab
+from tabs.internal_students.backend import InternalStudentsBackend
+from tabs.internal_students.build import InternalStudentsTab
+from tabs.received_logins.backend import ReceivedLoginsBackend
+from tabs.received_logins.build import ReceivedLoginsTab
+from tabs.access_logs.backend import AccessLogsBackend
+from tabs.access_logs.build import AccessLogsTab
+
 
 class MainWindow(QMainWindow):
-    COL_NAME = 0
-    COL_IP = 1
-    COL_STATE = 2
-    COL_TIME = 3
-    COL_ACTIONS = 4
-
-    def __init__(self):
+    def __init__(self, database: Database | None = None):
         super().__init__()
         self.setWindowTitle("DesktopKioskCenter")
         self.resize(1100, 620)
+        self._closing = False
 
-        self.kiosks = load_kiosks()
+        if platform.system() == "Windows":
+            pywinstyles.apply_style(self, "dark")
 
-        self.table = QTableWidget(0, 5)
-        self.table.setHorizontalHeaderLabels(
-            [
-                "Nombre del Equipo",
-                "IP del Equipo",
-                "Estado",
-                "Tiempo usando",
-                "Decisión",
-            ]
+        self.database = database or Database()
+        # initialize() es idempotente; garantiza que las tablas existan si la ventana
+        # se inicia directamente desde una prueba o desde otro punto de entrada.
+        self.database.initialize()
+
+        self.threadpool = QThreadPool(self)
+        self.threadpool.setMaxThreadCount(8)
+
+        root = QWidget(self)
+        root.setObjectName("RootMain")
+        root_layout = QVBoxLayout(root)
+        root_layout.setContentsMargins(12, 10, 12, 12)
+        root_layout.setSpacing(10)
+
+        header = QWidget(root)
+        header.setObjectName("applicationHeader")
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(16, 10, 16, 10)
+
+        self.application_title = QLabel("DesktopKioskCenter", header)
+        self.application_title.setObjectName("applicationTitle")
+
+        right_header = QVBoxLayout()
+        right_header.setSpacing(2)
+        self.clock_label = QLabel(header)
+        self.clock_label.setObjectName("clockLabel")
+        self.date_label = QLabel(header)
+        self.date_label.setObjectName("dateLabel")
+        self.server_ip_label = QLabel("IP del servidor: detectando…", header)
+        self.server_ip_label.setObjectName("serverIpLabel")
+
+        for label in (self.clock_label, self.date_label, self.server_ip_label):
+            label.setAlignment(Qt.AlignmentFlag.AlignRight)
+
+        right_header.addWidget(self.clock_label)
+        right_header.addWidget(self.date_label)
+        right_header.addWidget(self.server_ip_label)
+        header_layout.addWidget(self.application_title, 1)
+        header_layout.addLayout(right_header)
+
+        self.tabs = QTabWidget(root)
+        self.equipment_tab = EquipmentTab(self.tabs)
+        self.internal_students_tab = InternalStudentsTab(self.tabs)
+        self.external_users_tab = ExternalUsersTab(self.tabs)
+        self.received_logins_tab = ReceivedLoginsTab(self.tabs)
+        self.access_logs_tab = AccessLogsTab(self.tabs)
+
+        self.tabs.setStyleSheet(apply_css_sheet("css/qtabwidget.css"))
+        self.tabs.addTab(self.equipment_tab, "Equipos")
+        self.tabs.addTab(
+            self.internal_students_tab, "Alumnos Internos Registrados"
         )
-        self.table.setAlternatingRowColors(True)
-        self.table.setSelectionBehavior(
-            QTableWidget.SelectionBehavior.SelectRows
+        self.tabs.addTab(
+            self.external_users_tab, "Usuarios Externos Registrados"
         )
-        self.table.setEditTriggers(
-            QTableWidget.EditTrigger.NoEditTriggers
+        self.tabs.addTab(self.received_logins_tab, "Logs de peticiones")
+        self.tabs.addTab(self.access_logs_tab, "Logs de accesos")
+
+        self.equipment_backend = EquipmentBackend(
+            self.equipment_tab, self.threadpool, self, database=self.database
         )
-        self.table.horizontalHeader().setStretchLastSection(True)
-
-        self.setCentralWidget(self.table)
-
-        self.build_menus()
-        self.refresh_table()
-
-        # Crear el pool para peticiones en segundo plano
-        self.threadpool = QThreadPool.globalInstance()
-
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.poll_status)
-        self.timer.start(3000)
-
-        self.poll_status()
-
-    def build_menus(self):
-        menu_archivo = self.menuBar().addMenu("Archivo")
-        action_exit = menu_archivo.addAction("Salir")
-        action_exit.triggered.connect(self.close)
-
-        menu_edicion = self.menuBar().addMenu("Edición")
-        action_add = menu_edicion.addAction("Agregar Equipo")
-        action_add.triggered.connect(self.add_kiosk)
-
-        menu_ayuda = self.menuBar().addMenu("Ayuda")
-        action_about = menu_ayuda.addAction("Acerca de...")
-        action_about.triggered.connect(self.show_about)
-
-    def refresh_table(self):
-        self.table.setRowCount(0)
-
-        for index, kiosk in enumerate(self.kiosks):
-            self.table.insertRow(index)
-
-            self.table.setItem(index, self.COL_NAME, QTableWidgetItem(kiosk.name))
-            self.table.setItem(
-                index,
-                self.COL_IP,
-                QTableWidgetItem(f"{kiosk.host}:{kiosk.port}"),
-            )
-            self.table.setItem(
-                index,
-                self.COL_STATE,
-                QTableWidgetItem(self.state_label(kiosk.state)),
-            )
-            self.table.setItem(
-                index,
-                self.COL_TIME,
-                QTableWidgetItem(format_duration(kiosk.locked_seconds)),
-            )
-
-            self.table.setCellWidget(
-                index,
-                self.COL_ACTIONS,
-                self.make_action_widget(index, kiosk),
-            )
-
-        self.table.resizeColumnsToContents()
-        self.table.setColumnWidth(self.COL_ACTIONS, 330)
-
-    @staticmethod
-    def state_label(state: str) -> str:
-        return {
-            "locked": "Bloqueado",
-            "unlocked": "Desbloqueado",
-            "offline": "Sin conexión",
-            "error": "Error",
-        }.get(state, state)
-
-    def make_action_widget(self, row: int, kiosk: Kiosk) -> QWidget:
-        container = QWidget()
-        layout = QHBoxLayout(container)
-        layout.setContentsMargins(4, 2, 4, 2)
-
-        lock_button = QPushButton("Bloquear")
-        unlock_button = QPushButton("Desbloquear")
-        edit_button = QPushButton("Editar")
-        remove_button = QPushButton("Quitar")
-
-        lock_button.clicked.connect(
-            lambda _=False, i=row: self.send_action(i, "lock")
+        self.internal_students_backend = InternalStudentsBackend(
+            self.internal_students_tab, self.database, self
         )
-        unlock_button.clicked.connect(
-            lambda _=False, i=row: self.send_action(i, "unlock")
+        self.external_users_backend = ExternalUsersBackend(
+            self.external_users_tab, self.database, self
         )
-        edit_button.clicked.connect(
-            lambda _=False, i=row: self.edit_kiosk(i)
+        self.received_logins_backend = ReceivedLoginsBackend(
+            self.received_logins_tab, self.database, self
         )
-        remove_button.clicked.connect(
-            lambda _=False, i=row: self.remove_kiosk(i)
+        self.access_logs_backend = AccessLogsBackend(
+            self.access_logs_tab, self.database, self
         )
 
-        layout.addWidget(lock_button)
-        layout.addWidget(unlock_button)
-        layout.addWidget(edit_button)
-        layout.addWidget(remove_button)
+        root_layout.addWidget(header)
+        root_layout.addWidget(self.tabs, 1)
+        self.setCentralWidget(root)
+        self.setStyleSheet(apply_css_sheet("css/qmainwin.css"))
 
-        return container
+        self.clock_timer = QTimer(self)
+        self.clock_timer.timeout.connect(self.update_header_clock)
+        self.clock_timer.start(1000)
 
-    def base_url(self, kiosk: Kiosk) -> str:
-        return f"http://{kiosk.host}:{kiosk.port}"
+        self.server_ip_timer = QTimer(self)
+        self.server_ip_timer.timeout.connect(self.update_server_ip)
+        self.server_ip_timer.start(15000)
 
-    def auth_headers(self, kiosk: Kiosk) -> dict[str, str]:
-        return {
-            "Authorization": f"Bearer {kiosk.token}",
-            "Content-Type": "application/json",
-        }
+        self.update_header_clock()
+        self.update_server_ip()
 
-    def send_action(self, index: int, action: str):
-        kiosk = self.kiosks[index]
-        worker = ActionWorker(
-            kiosk, 
-            action, 
-            self.base_url(kiosk), 
-            self.auth_headers(kiosk)
-        )
-        
-        # Conectamos las señales a métodos de la interfaz
-        worker.signals.error.connect(self.show_action_error)
-        
-        # Iniciamos el trabajador en el hilo en segundo plano
-        self.threadpool.start(worker)
+        self.tabs.currentChanged.connect(self.refresh_active_data_tab)
+        self.data_refresh_timer = QTimer(self)
+        self.data_refresh_timer.timeout.connect(self.refresh_active_data_tab)
+        self.data_refresh_timer.start(2000)
 
-    def show_action_error(self, title: str, message: str):
-        # Este método se ejecuta de forma segura dentro del hilo principal de la UI
-        QMessageBox.critical(self, title, message)
-
-    def poll_status(self):
-        # Lanza las peticiones en paralelo sin bloquear la UI
-        for index, kiosk in enumerate(self.kiosks):
-            worker = PollWorker(
-                index, 
-                kiosk, 
-                self.base_url(kiosk), 
-                self.auth_headers(kiosk)
-            )
-            worker.signals.finished.connect(self.on_poll_finished)
-            self.threadpool.start(worker)
-    
-    def on_poll_finished(self, index: int, new_state: str, new_seconds: object):
-        if index >= len(self.kiosks):
+    def refresh_active_data_tab(self, _index=None):
+        """Actualiza la pestaña visible para reflejar peticiones REST recién recibidas."""
+        if self._closing:
             return
-
-        kiosk = self.kiosks[index]
-        changed = (kiosk.state != new_state or kiosk.locked_seconds != new_seconds)
-
-        if changed:
-            kiosk.state = new_state
-            kiosk.locked_seconds = new_seconds
-            # Actualizamos únicamente la celda/fila afectada sin reconstruir toda la tabla
-            self.update_row(index)
-            
-    def update_row(self, index: int):
-        kiosk = self.kiosks[index]
-        
-        # Actualizar texto de Estado
-        state_item = self.table.item(index, self.COL_STATE)
-        if state_item:
-            state_item.setText(self.state_label(kiosk.state))
-
-        # Actualizar texto de Tiempo
-        time_item = self.table.item(index, self.COL_TIME)
-        if time_item:
-            time_item.setText(format_duration(kiosk.locked_seconds))
-    
-    def poll_one(self, index: int) -> bool:
-        kiosk = self.kiosks[index]
 
         try:
-            response = requests.get(
-                f"{self.base_url(kiosk)}/api/kiosk/status",
-                headers=self.auth_headers(kiosk),
-                timeout=2,
+            index = self.tabs.currentIndex()
+            if index == 1:
+                self.internal_students_backend.refresh(preserve_editor=True)
+            elif index == 2:
+                self.external_users_backend.refresh(preserve_editor=True)
+            elif index == 3:
+                self.received_logins_backend.refresh()
+            elif index == 4:
+                self.access_logs_backend.refresh()
+        except Exception:
+            # Un fallo transitorio de lectura no debe cerrar la interfaz; el siguiente
+            # ciclo vuelve a consultar SQLite y actualizará la tabla si está disponible.
+            import logging
+            logging.getLogger(__name__).exception(
+                "No se pudo actualizar la pestaña de datos desde SQLite."
             )
-            response.raise_for_status()
 
-            data = response.json()
+    def update_header_clock(self):
+        self.clock_label.setText(QTime.currentTime().toString("HH:mm:ss"))
+        self.date_label.setText(QDate.currentDate().toString("dd/MM/yyyy"))
 
-            new_state = data.get("state", "error")
-            new_seconds = data.get("locked_seconds")
+    @staticmethod
+    def detect_server_ip():
+        """Detecta la IP local preferida para enrutar tráfico IPv4."""
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+                probe.connect(("192.0.2.1", 80))
+                address = probe.getsockname()[0]
+                if address and not ipaddress.ip_address(address).is_loopback:
+                    return address
+        except OSError:
+            pass
 
-            changed = (
-                kiosk.state != new_state
-                or kiosk.locked_seconds != new_seconds
-            )
+        candidates = set()
+        try:
+            for result in socket.getaddrinfo(
+                socket.gethostname(), None, socket.AF_INET, socket.SOCK_DGRAM
+            ):
+                address = result[4][0]
+                parsed = ipaddress.ip_address(address)
+                if not parsed.is_loopback and not parsed.is_link_local:
+                    candidates.add(address)
+        except OSError:
+            pass
 
-            kiosk.state = new_state
-            kiosk.locked_seconds = new_seconds
-            return changed
+        if not candidates:
+            return "No disponible"
 
-        except (requests.RequestException, ValueError):
-            changed = kiosk.state != "offline" or kiosk.locked_seconds is not None
-            kiosk.state = "offline"
-            kiosk.locked_seconds = None
-            return changed
+        private_candidates = sorted(
+            address for address in candidates
+            if ipaddress.ip_address(address).is_private
+        )
+        return (private_candidates or sorted(candidates))[0]
 
-    def add_kiosk(self):
-        dialog = KioskDialog(self)
-
-        if dialog.exec() != QDialog.DialogCode.Accepted:
-            return
-
-        self.kiosks.append(dialog.get_kiosk())
-        save_kiosks(self.kiosks)
-        self.refresh_table()
-
-    def edit_kiosk(self, index: int):
-        kiosk = self.kiosks[index]
-        dialog = KioskDialog(self, kiosk)
-
-        if dialog.exec() != QDialog.DialogCode.Accepted:
-            return
-
-        updated = dialog.get_kiosk()
-        updated.state = kiosk.state
-        updated.locked_seconds = kiosk.locked_seconds
-
-        self.kiosks[index] = updated
-        save_kiosks(self.kiosks)
-        self.refresh_table()
-
-    def remove_kiosk(self, index: int):
-        kiosk = self.kiosks[index]
-
-        answer = QMessageBox.question(
-            self,
-            "Quitar equipo",
-            f"¿Quitar «{kiosk.name}» de la lista?",
+    def update_server_ip(self):
+        self.server_ip_label.setText(
+            f"IP del servidor: {self.detect_server_ip()}"
         )
 
-        if answer != QMessageBox.StandardButton.Yes:
-            return
-
-        self.kiosks.pop(index)
-        save_kiosks(self.kiosks)
-        self.refresh_table()
-
-    def show_about(self):
-        QMessageBox.information(
-            self,
-            "Acerca de DesktopKioskCenter",
-            "DesktopKioskCenter MVP\n"
-            "Gestión centralizada de clientes Kiosk mediante HTTP + Bearer Token.",
-        )
+    def closeEvent(self, event):
+        self._closing = True
+        self.clock_timer.stop()
+        self.server_ip_timer.stop()
+        self.data_refresh_timer.stop()
+        self.equipment_backend.stop()
+        self.threadpool.clear()
+        self.threadpool.waitForDone()
+        self.equipment_backend.release_workers()
+        event.accept()

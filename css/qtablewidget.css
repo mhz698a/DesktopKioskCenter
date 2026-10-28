@@ -1,0 +1,108 @@
+/* Estilo general de la tabla y su contenedor */
+QTableWidget {
+    background-color: #1f1f1f;
+    alternate-background-color: #282727; /* Fondo de filas alternas muy sutil */
+    border: 1px solid #E0E0E0;
+    border-radius: 4px;
+    gridline-color: transparent; /* Por si acaso, asegura que no haya líneas internas */
+    font-family: "Segoe UI", sans-serif;
+    font-size: 13px;
+    color: #d6d6d6;
+}
+
+/* Estilo de las celdas individuales */
+QTableWidget::item {
+    padding-left: 12px;
+    padding-right: 12px;
+    border-bottom: 1px solid #F0F0F0; /* Línea divisoria horizontal muy delgada */
+}
+
+/* Estado cuando pasas el mouse por encima de una fila (Hover) */
+QTableWidget::item:hover {
+    background-color: #5b6881;
+    color: #fff;
+}
+
+/* Estado cuando una fila está seleccionada */
+QTableWidget::item:selected {
+    background-color: #4f89be; /* Tono azul claro semi-transparente */
+    color: #f4faff;            /* Texto en color de acento moderno */
+}
+
+/* Estilo del encabezado horizontal (Títulos de las columnas) */
+QHeaderView::section {
+    background-color: #2a3145;
+    color: #d3d3d3;
+    padding: 8px 12px;
+    font-weight: bold;
+    font-size: 12px;
+    border: none;
+    border-bottom: 2px solid #E0E0E0; /* Línea base inferior para separar del contenido */
+    text-align: left;
+}
+
+/* Esquina superior derecha del encabezado (espacio vacío del scrollbar) */
+QTableCornerButton::section {
+    background-color: #2a3145;
+    border: none;
+}
+
+
+/* =========================================
+   Estilo de las barras de desplazamiento (Scrollbars)
+   ========================================= */
+
+QScrollBar:vertical {
+    background: #1f1f1f;
+    width: 14px;
+    margin: 0px;
+    border-radius: 6px;
+}
+
+QScrollBar::handle:vertical {
+    background: #64748b; /* Tono gris-azulado más claro y visible */
+    min-height: 25px;
+    border-radius: 6px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background: #94a3b8; /* Aún más claro al pasar el mouse */
+}
+
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    background: none;
+    border: none;
+    height: 0px;
+}
+
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+    background: none;
+}
+
+/* Scrollbar horizontal */
+QScrollBar:horizontal {
+    background: #1f1f1f;
+    height: 14px;
+    margin: 0px;
+    border-radius: 6px;
+}
+
+QScrollBar::handle:horizontal {
+    background: #64748b;
+    min-width: 25px;
+    border-radius: 6px;
+}
+
+QScrollBar::handle:horizontal:hover {
+    background: #94a3b8;
+}
+
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    background: none;
+    border: none;
+    width: 0px;
+}
+
+QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
+    background: none;
+}

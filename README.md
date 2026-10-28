@@ -1,19 +1,10 @@
-# DesktopKioskCenter — MVP
+# DesktopKioskCenter
 
-Gestor central en PyQt6 para administrar equipos que ejecutan un cliente Kiosk local basado en Flask.
+Aplicación de escritorio PyQt6 para administrar clientes DesktopKiosk. La interfaz está organizada por pestañas; la persistencia de usuarios usa SQLite y la configuración de equipos usa JSON en AppData.
 
-## Componentes
+## Ejecución
 
-- `client/kiosk_client.py`: cliente Kiosk. Expone:
-  - `POST /api/kiosk/lock`
-  - `POST /api/kiosk/unlock`
-  - `POST /api/kiosk/close`
-  - `GET /api/kiosk/status`
-- `manager/main.py`: aplicación PyQt6 para administrar equipos.
-- `manager/kiosks.json`: persistencia de equipos del MVP.
-- Autenticación mediante `Authorization: Bearer <TOKEN>`.
-
-## Instalación
+Instala las dependencias del proyecto:
 
 ```bash
 python -m venv .venv
@@ -21,79 +12,48 @@ python -m venv .venv
 
 Windows:
 
-```bash
+```powershell
 .venv\Scripts\activate
-```
-
-Linux/macOS:
-
-```bash
-source .venv/bin/activate
-```
-
-Instalar dependencias:
-
-```bash
 pip install -r requirements.txt
+python main.py
 ```
 
-## Ejecutar un Kiosk cliente
+## Datos persistentes
 
-Windows:
+En Windows, la configuración y la base de datos viven en:
 
-```powershell
-$env:DESKTOPKIOSK_API_TOKEN="cambia-este-token"
-python client/kiosk_client.py
+```text
+%APPDATA%\DesktopKioskCenter\
 ```
 
-Linux/macOS:
+- `kiosks.json`: equipos, host/IP y puerto.
+- `desktopkioskcenter.sqlite3`: alumnos internos, usuarios externos/público general y logs de peticiones/accesos.
 
-```bash
-export DESKTOPKIOSK_API_TOKEN="cambia-este-token"
-python client/kiosk_client.py
-```
+La nueva versión importa, en su primer inicio, los registros heredados de `internal_students.json` y `external_users.json` si existen junto al programa. Los archivos antiguos no se eliminan automáticamente.
 
-Por defecto escucha en `0.0.0.0:7085`.
+La estructura de tablas, la migración, las consultas de ejemplo y las instrucciones de mantenimiento están documentadas en [docs/DATABASE.md](docs/DATABASE.md). El acceso a SQLite se encuentra centralizado en `database.py`; los módulos `tabs/*/build.py` presentan widgets y los módulos `tabs/*/backend.py` conectan la interfaz con la base de datos.
 
-## Ejecutar el gestor
+## Pestañas
 
-Windows:
+- **Equipos**: administra los kioscos y muestra su estado mediante heartbeats; la tabla se actualiza cada segundo.
+- **Alumnos Internos Registrados**: guarda nombres, apellidos, correo electrónico, facultad y expediente. El correo debe ser único entre todos los usuarios.
+- **Usuarios Externos Registrados**: guarda nombres, apellidos, email, tipo de usuario y, cuando corresponda, universidad.
+- **Logs de peticiones**: consulta solicitudes REST recibidas y permite contar totales por tipo y resultado.
+- **Logs de accesos**: consulta accesos permitidos y permite contar totales por tipo de usuario y equipo.
 
-```powershell
-$env:DESKTOPKIOSK_API_TOKEN="cambia-este-token"
-python manager/main.py
-```
+## API REST
 
-Linux/macOS:
+- `POST /api/v1/auth-client-pc/login`
+- `POST /api/v1/users/register/alumno`
+- `POST /api/v1/users/register/externo`
+- `POST /api/v1/health` (heartbeat de cada cliente, cada segundo)
 
-```bash
-export DESKTOPKIOSK_API_TOKEN="cambia-este-token"
-python manager/main.py
-```
+El inicio de sesión se realiza por correo electrónico; para alumnos internos también se admite el expediente. Los nombres no se usan como identificador. El correo es obligatorio al registrar cualquier tipo de usuario y debe ser único en toda la base de datos.
 
-El gestor también permite introducir un token diferente por equipo desde «Agregar equipo» o «Editar».
+La API se inicia junto con la interfaz, por defecto en el puerto TCP 7085. El puerto se puede cambiar con `DESKTOPKIOSKCENTER_API_PORT`. Los heartbeats se guardan en SQLite; después de cuatro segundos sin recibir uno, el equipo queda como `Sin conexión`. Consulta [docs/API.md](docs/API.md) para el contrato.
 
-## Prueba manual de API
+## Seguridad y alcance
 
-```bash
-curl -X POST http://127.0.0.1:7085/api/kiosk/lock \
-  -H "Authorization: Bearer cambia-este-token"
-```
+El token común de los clientes sigue siendo `UAQinformatizacion7085`. Al tratarse de un valor compartido e incluido en los ejecutables, no debe considerarse un secreto fuerte; limita el acceso al puerto del cliente mediante el firewall y una red administrativa autorizada.
 
-Estado:
-
-```bash
-curl http://127.0.0.1:7085/api/kiosk/status \
-  -H "Authorization: Bearer cambia-este-token"
-```
-
-Desbloqueo:
-
-```bash
-curl -X POST http://127.0.0.1:7085/api/kiosk/unlock \
-  -H "Authorization: Bearer cambia-este-token"
-```
-
-## Nota de seguridad
-
-Este MVP implementa el bloqueo como una ventana de pantalla completa del propio Kiosk. No intenta saltarse la autenticación del sistema operativo para «desbloquear» Windows, Linux o macOS. Para un producto real, el acceso remoto debe ir sobre TLS/VPN o una red administrativa aislada, con tokens rotatorios y registro de auditoría.
+La API REST ya se ejecuta junto con la interfaz. El endpoint de inicio de sesión comprueba el registro, pero todavía no verifica contraseñas: el contrato de registro no incluye credenciales. Consulta [docs/API.md](docs/API.md) antes de habilitarla en una red compartida.
