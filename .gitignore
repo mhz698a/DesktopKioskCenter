@@ -10,6 +10,7 @@ dist/
 __docs__/
 __sandbox__/
 __releases__/
+Output/
 .vscode/
 *.tmp
 *.ptx
