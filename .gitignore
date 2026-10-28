@@ -12,3 +12,5 @@ __sandbox__/
 __releases__/
 .vscode/
 *.tmp
+*.ptx
+*.cer
