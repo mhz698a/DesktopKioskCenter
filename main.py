@@ -1,4 +1,3 @@
-import os
 import sys
 import ctypes
 import platform
@@ -7,6 +6,7 @@ import sqlite3
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtGui import QIcon
 
+from const import resource_path
 from css.cQDialogs import cQMsgBox
 from database import Database
 from api_server import ApiServer
@@ -18,14 +18,14 @@ if platform.system() == "Windows":
         "DesktopKioskCenterINF"
     )
 
-ICON_PATH = os.path.join(os.path.dirname(sys.argv[0]), "icon.png")
+ICON_PATH = resource_path("icon.png")
 
 
 def main():
     app = QApplication(sys.argv)
     app.setOrganizationName("UAQ")
     app.setApplicationName("DesktopKioskCenter")
-    app.setWindowIcon(QIcon(ICON_PATH))
+    app.setWindowIcon(QIcon(str(ICON_PATH)))
 
     api_server = None
     try:

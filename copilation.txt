@@ -1,1 +1,8 @@
-pyinstaller --noconsole --onefile main.py
+# Windows: instala las dependencias y las herramientas de compilación.
+python -m pip install -r requirements.txt
+python -m pip install pyinstaller pillow
+
+# Genera una distribución onedir con DesktopKioskCenter.exe y _internal/.
+python -m PyInstaller --noconfirm --clean main.spec
+
+# Copia la carpeta completa dist\DesktopKioskCenter\, no solo el ejecutable.

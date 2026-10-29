@@ -26,3 +26,33 @@ jobs:
         run: python -m compileall -q .
       - name: Run SQLite tests
         run: python -m unittest discover -s tests -v
+
+  windows-package:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install application and build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pyinstaller pillow
+      - name: Build onedir package
+        run: python -m PyInstaller --noconfirm --clean main.spec
+      - name: Verify executable and bundled resources
+        shell: pwsh
+        run: |
+          $required = @(
+            "dist/DesktopKioskCenter/DesktopKioskCenter.exe",
+            "dist/DesktopKioskCenter/_internal/icon.png",
+            "dist/DesktopKioskCenter/_internal/kiosks.json",
+            "dist/DesktopKioskCenter/_internal/css/qmainwin.css"
+          )
+          foreach ($path in $required) {
+            if (-not (Test-Path $path)) {
+              throw "Missing package output: $path"
+            }
+          }

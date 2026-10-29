@@ -18,6 +18,20 @@ pip install -r requirements.txt
 python main.py
 ```
 
+## Compilación para Windows (onedir)
+
+Desde la raíz del repositorio, en PowerShell:
+
+```powershell
+python -m pip install -r requirements.txt
+python -m pip install pyinstaller pillow
+python -m PyInstaller --noconfirm --clean main.spec
+```
+
+El paquete queda en `dist\DesktopKioskCenter\`. Copia la carpeta completa a `C:\Program Files\DesktopKioskCenter`; no copies únicamente el `.exe`, porque las bibliotecas y los recursos de ejecución se distribuyen en `_internal`. `main.spec` incrusta el icono en el ejecutable y también incluye `icon.png` para el icono de la ventana.
+
+La configuración y la base de datos se guardan en `%APPDATA%\DesktopKioskCenter`, por lo que la aplicación no necesita escribir dentro de `Program Files`.
+
 ## Datos persistentes
 
 En Windows, la configuración y la base de datos viven en:

@@ -1,10 +1,18 @@
+"""Carga hojas de estilo tanto desde el código fuente como desde el paquete compilado."""
+import logging
 from pathlib import Path
 
-def apply_css_sheet(ruta_archivo):
-    APP_DIR = Path(__file__).resolve().parent.parent.as_posix()
+from const import resource_path
+
+
+logger = logging.getLogger(__name__)
+
+
+def apply_css_sheet(ruta_archivo: str | Path):
+    """Lee una hoja de estilo empaquetada sin depender del directorio de trabajo."""
+    path = resource_path(ruta_archivo)
     try:
-        with open(f"{APP_DIR}/{ruta_archivo}", "r", encoding="utf-8") as f:
-            return f.read()
-    except FileNotFoundError:
-        print(f"Advertencia: No se encontró el archivo de estilos en '{ruta_archivo}'")
+        return path.read_text(encoding="utf-8")
+    except OSError:
+        logger.warning("No se pudo leer el archivo de estilos '%s'.", path, exc_info=True)
         return None

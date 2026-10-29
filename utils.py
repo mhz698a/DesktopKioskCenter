@@ -4,7 +4,7 @@ import logging
 import shutil
 from dataclasses import asdict
 
-from const import APP_DATA_DIR, BASE_DIR, DATA_FILE, Kiosk, ensure_app_data_dir
+from const import APP_DATA_DIR, BASE_DIR, DATA_FILE, Kiosk, ensure_app_data_dir, resource_path
 
 
 logger = logging.getLogger(__name__)
@@ -16,8 +16,17 @@ def _migrate_legacy_kiosk_file() -> None:
     La migración solo se intenta cuando el archivo nuevo todavía no existe. Así
     un archivo AppData ya utilizado no se sobrescribe con datos antiguos.
     """
-    legacy_file = BASE_DIR / "kiosks.json"
-    if DATA_FILE.exists() or not legacy_file.exists():
+    if DATA_FILE.exists():
+        return
+
+    # Las versiones antiguas dejaban kiosks.json junto al ejecutable. Los
+    # recursos empaquetados por PyInstaller pueden vivir en _internal.
+    legacy_candidates = (BASE_DIR / "kiosks.json", resource_path("kiosks.json"))
+    legacy_file = next(
+        (candidate for candidate in legacy_candidates if candidate.is_file()),
+        None,
+    )
+    if legacy_file is None:
         return
 
     try:

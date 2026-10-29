@@ -1,48 +1,74 @@
 # -*- mode: python ; coding: utf-8 -*-
+"""PyInstaller onedir configuration for Windows deployments."""
+
+import sys
+sys.setrecursionlimit(5000)
+
+from pathlib import Path
+
+from pathlib import Path
 
 block_cipher = None
+project_root = Path(SPEC).resolve().parent
 
-# 1. Definimos los recursos adicionales que PyInstaller no arrastra de forma automática
+for required_file in ("main.py", "icon.png"):
+    candidate = project_root / required_file
+    if not candidate.is_file():
+        raise FileNotFoundError(f"Required build input not found: {candidate}")
+
+# Collect runtime assets only. Python modules under css/ are collected by Analysis
+# through imports; stylesheets and SVGs remain regular data files.
+css_dir = project_root / "css"
 added_files = [
-    ('css', 'css'),                      # Copia toda la carpeta css/ (con los QSS y SVGs)
-    ('kiosks.json', '.'),                 # Archivo de configuración inicial
-    ('kiosko_cert.cer', '.'),             # Certificado
-    ('kiosko_cert.pfx', '.'),             # Llave privada/certificado PFX
-    ('icon.png', '.')                     # Icono de la aplicación
+    (str(path), "css")
+    for path in sorted(css_dir.iterdir())
+    if path.is_file() and path.suffix.lower() in {".css", ".svg"}
 ]
+added_files.extend([
+    (str(project_root / "icon.png"), "."),
+])
 
 a = Analysis(
-    ['main.py'],                          # Archivo de entrada principal
-    pathex=['.'],                         # Incluye la raíz para resolver los imports locales
+    [str(project_root / "main.py")],
+    pathex=[str(project_root)],
     binaries=[],
-    datas=added_files,                    # Inyectamos los recursos estáticos aquí
+    datas=added_files,
     hiddenimports=[
-        'wmain',
-        'database',
-        'utils',
-        'const',
-        'api_server',
-        'pollstatus',
-        'action_req',
-        'user_record_dialog',
-        'tabs.registered_user_editor',
-        'tabs.access_logs.build',
-        'tabs.access_logs.backend',
-        'tabs.equipment.build',
-        'tabs.equipment.backend',
-        'tabs.equipment.bulk_dialog',
-        'tabs.equipment.bulk_dlg_add',
-        'tabs.external_users.build',
-        'tabs.external_users.backend',
-        'tabs.internal_students.build',
-        'tabs.internal_students.backend',
-        'tabs.received_logins.build',
-        'tabs.received_logins.backend',
+        "wmain",
+        "database",
+        "utils",
+        "const",
+        "api_server",
+        "pollstatus",
+        "action_req",
+        "user_record_dialog",
+        "tabs.registered_user_editor",
+        "tabs.access_logs.build",
+        "tabs.access_logs.backend",
+        "tabs.equipment.build",
+        "tabs.equipment.backend",
+        "tabs.equipment.bulk_dialog",
+        "tabs.equipment.bulk_dlg_add",
+        "tabs.external_users.build",
+        "tabs.external_users.backend",
+        "tabs.internal_students.build",
+        "tabs.internal_students.backend",
+        "tabs.received_logins.build",
+        "tabs.received_logins.backend",
     ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['tests', 'docs', '.git', '.gitignore', 'copilation.txt'], # Excluimos carpetas innecesarias para producción
+    excludes=[
+        "tests", 
+        "docs", 
+        "cryptography", 
+        "pygame", 
+        "matplotlib", 
+        "numpy", 
+        "PIL", 
+        "IPython"
+    ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,
@@ -56,18 +82,18 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='DesktopKioskCenter',             # Nombre del .exe resultante
+    name="DesktopKioskCenter",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
-    console=False,                         # IMPORTANTE: False para ocultar la ventana negra de CMD (esencial para PyQt6)
+    upx=False,
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='icon.png'                        # Icono incrustado en el propio binario executable
+    icon=str(project_root / "icon.png"),
 )
 
 coll = COLLECT(
@@ -76,7 +102,7 @@ coll = COLLECT(
     a.zipfiles,
     a.datas,
     strip=False,
-    upx=True,
+    upx=False,
     upx_exclude=[],
-    name='DesktopKioskCenter',             # Nombre del directorio de salida dentro de /dist
+    name="DesktopKioskCenter",
 )
