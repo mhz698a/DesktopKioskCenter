@@ -59,7 +59,17 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=["tests", "docs", "cryptography"],
+    excludes=[
+        "tests", 
+        "docs", 
+        "cryptography", 
+        "pygame", 
+        "matplotlib", 
+        "numpy", 
+        "PIL", 
+        "jinja2", 
+        "IPython"
+    ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,
