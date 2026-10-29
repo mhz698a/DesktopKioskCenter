@@ -16,6 +16,17 @@ else:
     BASE_DIR = Path(__file__).resolve().parent
 
 
+def resource_path(relative_path: str | Path) -> Path:
+    """Resuelve recursos estáticos tanto desde el código como desde PyInstaller.
+
+    En una compilación onedir, PyInstaller coloca los recursos en sys._MEIPASS
+    (normalmente la carpeta _internal), no junto al ejecutable.
+    """
+    bundle_dir = getattr(sys, "_MEIPASS", None)
+    root = Path(bundle_dir) if bundle_dir else Path(__file__).resolve().parent
+    return root / relative_path
+
+
 def _get_roaming_data_root() -> Path:
     """Devuelve el directorio de datos del usuario para el sistema operativo actual."""
     if os.name == "nt":
