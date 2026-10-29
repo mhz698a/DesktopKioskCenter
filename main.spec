@@ -1,6 +1,11 @@
 # -*- mode: python ; coding: utf-8 -*-
 """PyInstaller onedir configuration for Windows deployments."""
 
+import sys
+sys.setrecursionlimit(5000)
+
+from pathlib import Path
+
 from pathlib import Path
 
 block_cipher = None
