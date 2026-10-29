@@ -6,7 +6,7 @@ from pathlib import Path
 block_cipher = None
 project_root = Path(SPEC).resolve().parent
 
-for required_file in ("main.py", "kiosks.json", "icon.png"):
+for required_file in ("main.py", "icon.png"):
     candidate = project_root / required_file
     if not candidate.is_file():
         raise FileNotFoundError(f"Required build input not found: {candidate}")
