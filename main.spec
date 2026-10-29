@@ -20,7 +20,6 @@ added_files = [
     if path.is_file() and path.suffix.lower() in {".css", ".svg"}
 ]
 added_files.extend([
-    (str(project_root / "kiosks.json"), "."),
     (str(project_root / "icon.png"), "."),
 ])
 
