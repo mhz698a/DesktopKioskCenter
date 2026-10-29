@@ -67,7 +67,6 @@ a = Analysis(
         "matplotlib", 
         "numpy", 
         "PIL", 
-        "jinja2", 
         "IPython"
     ],
     win_no_prefer_redirects=False,
