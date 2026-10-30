@@ -48,7 +48,6 @@ jobs:
           $required = @(
             "dist/DesktopKioskCenter/DesktopKioskCenter.exe",
             "dist/DesktopKioskCenter/_internal/icon.png",
-            "dist/DesktopKioskCenter/_internal/kiosks.json",
             "dist/DesktopKioskCenter/_internal/css/qmainwin.css"
           )
           foreach ($path in $required) {
@@ -56,3 +55,28 @@ jobs:
               throw "Missing package output: $path"
             }
           }
+          # kiosks.json is runtime data and is created under %APPDATA%.
+      - name: Install Inno Setup
+        run: choco install innosetup --yes --no-progress
+      - name: Compile Windows installer
+        shell: pwsh
+        run: |
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            throw "Inno Setup compiler not found: $iscc"
+          }
+          & $iscc "installer.iss"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Inno Setup compilation failed with exit code $LASTEXITCODE"
+          }
+          $installer = "Output/Installer_DesktopKioskCenter.exe"
+          if (-not (Test-Path $installer)) {
+            throw "Installer output not found: $installer"
+          }
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: DesktopKioskCenter-Installer
+          path: Output/Installer_DesktopKioskCenter.exe
+          if-no-files-found: error
+          retention-days: 14
