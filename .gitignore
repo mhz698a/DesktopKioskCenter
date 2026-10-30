@@ -14,5 +14,3 @@ Output/
 .vscode/
 *.tmp
 *.pfx
-*.cer
-*.iss
