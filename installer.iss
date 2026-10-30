@@ -15,11 +15,17 @@ Source: ".\dist\DesktopKioskCenter\*"; DestDir: "{app}"; Flags: ignoreversion re
 ; 3. El certificado público necesario para instalar la confianza local
 Source: ".\kioskoce_cert.cer"; DestDir: "{tmp}"; Flags: deleteafterinstall
 
-[Run]
+[Icons]
+; Acceso directo en el Menú de Inicio para todos los usuarios
+Name: "{group}\DesktopKioskCenter"; Filename: "{app}\DesktopKioskCenter.exe"
 
+
+[Run]
 Filename: "certutil.exe"; Parameters: "-addstore -f ""Root"" ""{tmp}\kioskoce_cert.cer"""; StatusMsg: "Configurando certificado de confianza (Raíz)..."; Flags: runhidden
 Filename: "certutil.exe"; Parameters: "-addstore -f ""TrustedPublisher"" ""{tmp}\kioskoce_cert.cer"""; StatusMsg: "Configurando certificado de confianza (Editor)..."; Flags: runhidden
 Filename: "netsh.exe"; Parameters: "advfirewall firewall add rule name=""DesktopKioskCenter_In"" dir=in action=allow protocol=TCP localport=7085 program=""{app}\DesktopKioskCenter.exe"" enable=yes"; StatusMsg: "Configurando reglas de red en el Firewall..."; Flags: runhidden
+
+Filename: "{app}\DesktopKioskCenter.exe"; Description: "{cm:LaunchProgram,DesktopKioskCenter}"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
 ; Limpieza exclusiva del certificado al desinstalar
