@@ -21,9 +21,11 @@ WizardStyle=modern
 DisableProgramGroupPage=yes
 
 [Files]
-; PyInstaller genera una distribución onedir: el EXE y todos los recursos
-; deben instalarse conservando la carpeta _internal y sus subdirectorios.
-Source: "{#DistOutputDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Exigir el EXE evita generar un instalador si PyInstaller no produjo el artefacto principal.
+Source: "{#DistOutputDir}\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+
+; La distribución onedir incluye _internal y todos sus subdirectorios.
+Source: "{#DistOutputDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "{#AppExeName}"
 
 ; Certificado público usado por DesktopKioskCenter.
 Source: "kioskoce_cert.cer"; DestDir: "{tmp}"; Flags: deleteafterinstall
