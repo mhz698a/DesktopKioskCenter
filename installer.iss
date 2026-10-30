@@ -1,34 +1,50 @@
+#define AppName "DesktopKioskCenter"
+#define AppVersion "1.0"
+#define AppExeName "DesktopKioskCenter.exe"
+#define DistOutputDir "dist\DesktopKioskCenter"
+
 [Setup]
-AppName=DesktopKioskCenter
-AppVersion=1.0
-DefaultDirName={commonpf}\DesktopKioskCenter
-DefaultGroupName=DesktopKioskCenter
+AppName={#AppName}
+AppVersion={#AppVersion}
+DefaultDirName={autopf}\{#AppName}
+DefaultGroupName={#AppName}
+UninstallDisplayName={#AppName}
+UninstallDisplayIcon={app}\{#AppExeName}
 PrivilegesRequired=admin
-OutputDir=.\Output
+ArchitecturesAllowed=x64
+ArchitecturesInstallIn64BitMode=x64
+OutputDir=Output
 OutputBaseFilename=Installer_DesktopKioskCenter
+Compression=lzma2
+SolidCompression=yes
+WizardStyle=modern
+DisableProgramGroupPage=yes
 
 [Files]
-; 1. Se incluye el ejecutable principal desde la estructura real de dist
-Source: ".\dist\DesktopKioskCenter\DesktopKioskCenter.exe"; DestDir: "{app}"; Flags: ignoreversion
-; 2. Se incluye absolutamente todo el contenido de la carpeta (incluyendo _internal y css) para que no falte nada al ejecutar
-Source: ".\dist\DesktopKioskCenter\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-; 3. El certificado público necesario para instalar la confianza local
-Source: ".\kioskoce_cert.cer"; DestDir: "{tmp}"; Flags: deleteafterinstall
+; PyInstaller genera una distribución onedir: el EXE y todos los recursos
+; deben instalarse conservando la carpeta _internal y sus subdirectorios.
+Source: "{#DistOutputDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+; Certificado público usado por DesktopKioskCenter.
+Source: "kioskoce_cert.cer"; DestDir: "{tmp}"; Flags: deleteafterinstall
 
 [Icons]
-; Acceso directo en el Menú de Inicio para todos los usuarios
-Name: "{group}\DesktopKioskCenter"; Filename: "{app}\DesktopKioskCenter.exe"
-
+Name: "{group}\DesktopKioskCenter"; Filename: "{app}\{#AppExeName}"
 
 [Run]
-Filename: "certutil.exe"; Parameters: "-addstore -f ""Root"" ""{tmp}\kioskoce_cert.cer"""; StatusMsg: "Configurando certificado de confianza (Raíz)..."; Flags: runhidden
-Filename: "certutil.exe"; Parameters: "-addstore -f ""TrustedPublisher"" ""{tmp}\kioskoce_cert.cer"""; StatusMsg: "Configurando certificado de confianza (Editor)..."; Flags: runhidden
-Filename: "netsh.exe"; Parameters: "advfirewall firewall add rule name=""DesktopKioskCenter_In"" dir=in action=allow protocol=TCP localport=7085 program=""{app}\DesktopKioskCenter.exe"" enable=yes"; StatusMsg: "Configurando reglas de red en el Firewall..."; Flags: runhidden
+; Instalar el certificado en los almacenes de confianza del equipo.
+Filename: "{sys}\certutil.exe"; Parameters: "-addstore -f ""Root"" ""{tmp}\kioskoce_cert.cer"""; StatusMsg: "Instalando certificado raíz..."; Flags: runhidden waituntilterminated
+Filename: "{sys}\certutil.exe"; Parameters: "-addstore -f ""TrustedPublisher"" ""{tmp}\kioskoce_cert.cer"""; StatusMsg: "Instalando certificado de editor..."; Flags: runhidden waituntilterminated
 
-Filename: "{app}\DesktopKioskCenter.exe"; Description: "{cm:LaunchProgram,DesktopKioskCenter}"; Flags: nowait postinstall skipifsilent
+; Permitir conexiones entrantes a la API REST de DesktopKioskCenter.
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""DesktopKioskCenter_In"" dir=in action=allow protocol=TCP localport=7085 program=""{app}\{#AppExeName}"" enable=yes"; StatusMsg: "Configurando el Firewall..."; Flags: runhidden waituntilterminated
+
+; Iniciar la aplicación al finalizar la instalación interactiva.
+Filename: "{app}\{#AppExeName}"; Description: "{cm:LaunchProgram,DesktopKioskCenter}"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
-; Limpieza exclusiva del certificado al desinstalar
-Filename: "netsh.exe"; Parameters: "advfirewall firewall delete rule name=""DesktopKioskCenter_In"""; Flags: runhidden; RunOnceId: "RemoveKioskFirewall"
-Filename: "certutil.exe"; Parameters: "-delstore ""Root"" ""DesktopKioskCenter"""; Flags: runhidden; RunOnceId: "RemoveKioskRootCert"
-Filename: "certutil.exe"; Parameters: "-delstore ""TrustedPublisher"" ""DesktopKioskCenter"""; Flags: runhidden; RunOnceId: "RemoveKioskPubCert"
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""DesktopKioskCenter_In"""; Flags: runhidden waituntilterminated; RunOnceId: "RemoveKioskCenterFirewall"
+
+; El sujeto del certificado es exactamente "DesktopKioskCenter For UAQ".
+Filename: "{sys}\certutil.exe"; Parameters: "-delstore ""Root"" ""DesktopKioskCenter For UAQ"""; Flags: runhidden waituntilterminated; RunOnceId: "RemoveKioskCenterRootCert"
+Filename: "{sys}\certutil.exe"; Parameters: "-delstore ""TrustedPublisher"" ""DesktopKioskCenter For UAQ"""; Flags: runhidden waituntilterminated; RunOnceId: "RemoveKioskCenterPublisherCert"
