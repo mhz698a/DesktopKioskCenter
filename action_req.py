@@ -187,10 +187,10 @@ class BulkReceiveIPWorker(QRunnable):
                 f"y {len(errors)} fallaron, de {len(self.kiosks)} equipo(s)."
             )
             if errors:
-                details = "\\n".join(errors[:8])
+                details = "\n".join(errors[:8])
                 if len(errors) > 8:
-                    details += f"\\n... y {len(errors) - 8} error(es) más."
-                self.signals.error.emit("Resultado del envío de IP", summary + "\\n\\n" + details)
+                    details += f"\n... y {len(errors) - 8} error(es) más."
+                self.signals.error.emit("Resultado del envío de IP", summary + "\n\n" + details)
             else:
                 self.signals.success.emit("IP enviada", summary)
         finally:
@@ -242,12 +242,12 @@ class StudentUnlockWorker(QRunnable):
             else:
                 self.signals.error.emit(
                     "Error en la petición",
-                    f"HTTP {response.status_code} en «{self.kiosk.name}»:\\n{response.text[:200]}",
+                    f"HTTP {response.status_code} en «{self.kiosk.name}»:\n{response.text[:200]}",
                 )
         except requests.RequestException as exc:
             self.signals.error.emit(
                 "Error de comunicación",
-                f"No se pudo conectar con «{self.kiosk.name}».\\n\\n{exc}",
+                f"No se pudo conectar con «{self.kiosk.name}».\n\n{exc}",
             )
         finally:
             self.signals.finished.emit(self)
