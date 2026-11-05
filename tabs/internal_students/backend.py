@@ -1,10 +1,13 @@
 import sqlite3
 
-from PyQt6.QtCore import QObject
+from PyQt6.QtCore import QObject, QThreadPool
 from PyQt6.QtWidgets import QDialog, QMessageBox
 
+from action_req import StudentUnlockWorker
 from css.cQDialogs import cQMsgBox
 from database import Database
+from tabs.equipment.backend import EquipmentBackend
+from utils import load_kiosks
 from user_record_dialog import UserRecordDialog
 
 FIELDS = [("nombres", "Nombres"), ("apellidos", "Apellidos"), ("email", "Correo electrónico"), ("facultad", "Facultad"), ("expediente", "Expediente")]
