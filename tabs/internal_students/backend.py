@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import QDialog, QMessageBox
 from action_req import StudentUnlockWorker
 from css.cQDialogs import cQMsgBox
 from database import Database
-from tabs.equipment.backend import EquipmentBackend
+from const import DEFAULT_TOKEN
 from utils import load_kiosks
 from user_record_dialog import UserRecordDialog
 
@@ -24,6 +24,7 @@ class InternalStudentsBackend(QObject):
         self._closing = False
         self._workers = set()
         self._kiosks_by_host = {}
+        self._equipment_snapshot = None
         self._records_by_id = {}
         self._last_records = None
         view.add_requested.connect(self.add_student)
@@ -77,9 +78,15 @@ class InternalStudentsBackend(QObject):
         except Exception as exc:
             cQMsgBox.critical(
                 self.view, "Error al leer equipos",
-                f"No se pudo cargar la lista de PCs registradas.\\n\\n{exc}",
+                f"No se pudo cargar la lista de PCs registradas.\n\n{exc}",
             )
             kiosks = []
+        snapshot = tuple(
+            (kiosk.name, kiosk.host, kiosk.port) for kiosk in kiosks
+        )
+        if snapshot == self._equipment_snapshot:
+            return
+        self._equipment_snapshot = snapshot
         self._kiosks_by_host = {kiosk.host: kiosk for kiosk in kiosks}
         self.view.set_equipment_options(kiosks)
 
@@ -111,7 +118,10 @@ class InternalStudentsBackend(QObject):
 
         worker = StudentUnlockWorker(
             kiosk, student, f"http://{kiosk.host}:{kiosk.port}",
-            EquipmentBackend._auth_headers(),
+            {
+                "Authorization": f"Bearer {DEFAULT_TOKEN}",
+                "Content-Type": "application/json",
+            },
         )
         self._workers.add(worker)
         worker.signals.success.connect(self.on_student_unlock_success)
@@ -130,12 +140,12 @@ class InternalStudentsBackend(QObject):
             cQMsgBox.critical(
                 self.view, "Equipo desbloqueado; auditoría incompleta",
                 f"El equipo aceptó el desbloqueo, pero no se pudieron guardar "
-                f"los eventos de auditoría.\\n\\n{exc}",
+                f"los eventos de auditoría.\n\n{exc}",
             )
             return
         cQMsgBox.information(
             self.view, title,
-            message + "\\n\\nEl acceso y los eventos simulados quedaron registrados.",
+            message + "\n\nEl acceso y los eventos simulados quedaron registrados.",
         )
 
     def on_student_unlock_error(self, title, message):
