@@ -13,6 +13,7 @@ import logging
 import re
 import sqlite3
 import time
+from datetime import date
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -426,6 +427,23 @@ class Database:
             ).fetchone()
             return dict(row) if row else None
 
+    def delete_kiosk_heartbeats(self, client_ips: list[str]) -> int:
+        """Elimina los heartbeats de los equipos retirados de la configuración."""
+        normalized_ips = sorted({
+            str(client_ip or "").strip()
+            for client_ip in client_ips
+            if str(client_ip or "").strip()
+        })
+        if not normalized_ips:
+            return 0
+        placeholders = ", ".join("?" for _ in normalized_ips)
+        with self.connection() as connection:
+            cursor = connection.execute(
+                f"DELETE FROM kiosk_heartbeats WHERE client_ip IN ({placeholders})",
+                normalized_ips,
+            )
+            return int(cursor.rowcount)
+
     def list_internal_students(self) -> list[dict]:
         """Devuelve los alumnos internos en orden de alta."""
         with self.connection() as connection:
@@ -705,6 +723,63 @@ class Database:
                 )
             return int(cursor.lastrowid)
 
+    def record_manual_student_unlock(
+        self, *, kiosk_name: str, client_ip: str, student: dict
+    ) -> dict:
+        """Registra un desbloqueo administrativo atribuido a un alumno.
+
+        Se insertan dos eventos de auditoría (registro y desbloqueo simulados) y
+        un acceso real en una sola transacción. No se duplica el registro del alumno.
+        """
+        identifier = str(student.get("email") or student.get("expediente") or "").strip()
+        if not identifier:
+            raise ValueError("El alumno debe tener correo o expediente para auditar el acceso.")
+
+        name = str(student.get("nombres", "") or "").strip()
+        surname = str(student.get("apellidos", "") or "").strip()
+        faculty = str(student.get("facultad", "") or "").strip()
+        equipment = str(kiosk_name or "").strip()
+        source_ip = str(client_ip or "").strip()
+        user_type = "Alumno interno"
+
+        with self.connection() as connection:
+            registration = connection.execute(
+                """
+                INSERT INTO received_logins
+                    (kiosk_name, client_ip, identifier, user_type, action, result, message)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (equipment, source_ip, identifier, user_type,
+                 "registro_alumno_simulado", "registrado (simulación)",
+                 "Registro atribuido al alumno durante una asignación administrativa."),
+            )
+            unlock = connection.execute(
+                """
+                INSERT INTO received_logins
+                    (kiosk_name, client_ip, identifier, user_type, action, result, message)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (equipment, source_ip, identifier, user_type,
+                 "unlock_login_simulado", "permitido (simulación)",
+                 "Desbloqueo remoto aceptado y atribuido al alumno seleccionado."),
+            )
+            access = connection.execute(
+                """
+                INSERT INTO access_logs
+                    (kiosk_name, nombres, apellidos, expediente, facultad,
+                     universidad_externa, tipo_usuario)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (equipment, name, surname,
+                 str(student.get("expediente", "") or "").strip(),
+                 faculty, "", user_type),
+            )
+            return {
+                "registration_log_id": int(registration.lastrowid),
+                "unlock_log_id": int(unlock.lastrowid),
+                "access_log_id": int(access.lastrowid),
+            }
+
     def count_access_logs(self) -> dict:
         """Calcula total de accesos y subtotales por tipo de usuario y equipo."""
         with self.connection() as connection:
@@ -721,6 +796,68 @@ class Database:
             ).fetchall()
             return {"total": int(total), "by_type": self._as_dicts(by_type),
                     "by_kiosk": self._as_dicts(by_kiosk)}
+
+    def generate_access_report(
+        self, start_date: str, end_date: str, grouping: str = "day"
+    ) -> list[dict]:
+        """Agrupa accesos por día, semana (lunes) o mes y por procedencia."""
+        try:
+            start = date.fromisoformat(str(start_date))
+            end = date.fromisoformat(str(end_date))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Las fechas deben tener formato AAAA-MM-DD.") from exc
+        if end < start:
+            raise ValueError("La fecha final no puede ser anterior a la fecha inicial.")
+
+        period_expressions = {
+            "day": "date(accessed_at)",
+            "week": (
+                "date(accessed_at, '-' || "
+                "((CAST(strftime('%w', accessed_at) AS INTEGER) + 6) % 7) || ' days')"
+            ),
+            "month": "strftime('%Y-%m', accessed_at)",
+        }
+        if grouping not in period_expressions:
+            raise ValueError("La agrupación debe ser day, week o month.")
+
+        period_expression = period_expressions[grouping]
+        with self.connection() as connection:
+            rows = connection.execute(
+                f"""
+                SELECT
+                    {period_expression} AS period,
+                    CASE
+                        WHEN lower(trim(tipo_usuario)) IN ('estudiante externo', 'estudiante')
+                            THEN 'Universidad'
+                        WHEN lower(trim(tipo_usuario)) IN
+                             ('público en general', 'publico en general', 'publico_general')
+                            THEN 'Público en general'
+                        WHEN lower(trim(tipo_usuario)) IN ('alumno interno', 'trabajador interno')
+                            THEN 'UAQ'
+                        ELSE COALESCE(NULLIF(trim(tipo_usuario), ''), 'Sin clasificar')
+                    END AS origin,
+                    CASE
+                        WHEN lower(trim(tipo_usuario)) IN ('estudiante externo', 'estudiante')
+                            THEN COALESCE(NULLIF(trim(universidad_externa), ''),
+                                          'Universidad no especificada')
+                        WHEN lower(trim(tipo_usuario)) IN
+                             ('público en general', 'publico en general', 'publico_general')
+                            THEN 'Público en general'
+                        WHEN lower(trim(tipo_usuario)) = 'alumno interno'
+                            THEN COALESCE(NULLIF(trim(facultad), ''), 'Facultad no especificada')
+                        WHEN lower(trim(tipo_usuario)) = 'trabajador interno'
+                            THEN 'Trabajador interno'
+                        ELSE COALESCE(NULLIF(trim(tipo_usuario), ''), 'Sin especificar')
+                    END AS source,
+                    COUNT(*) AS total
+                FROM access_logs
+                WHERE date(accessed_at) BETWEEN ? AND ?
+                GROUP BY period, origin, source
+                ORDER BY period, origin, source
+                """,
+                (start.isoformat(), end.isoformat()),
+            ).fetchall()
+            return self._as_dicts(rows)
 
     def list_received_logins(self, limit: int | None = 1000) -> list[dict]:
         """Lista los eventos más recientes que el servidor central ha recibido."""
