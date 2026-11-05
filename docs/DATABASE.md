@@ -71,6 +71,16 @@ Es la tabla de referencia de los estados de los equipos. `status_code` es la cla
 
 Cada IP de origen tiene un registro con clave primaria `client_ip`, la referencia `status_code` al catálogo, `time_string` y la marca de tiempo `last_seen_at`. Cada petición heartbeat hace un upsert de la fila correspondiente. El servidor utiliza `request.remote_addr`; no espera la IP dentro del JSON. Cuando pasan 4 segundos sin un heartbeat, un monitor del servicio cambia el código a 0 sin depender de nuevas peticiones.
 
+### Reportes de estadísticas
+
+La pestaña **Estadísticas** consulta `access_logs` por un rango inclusivo de fechas y permite agrupar por día, semana (lunes a domingo) o mes. Cada periodo se desglosa por procedencia: universidad externa, público en general o UAQ; para universidades se conserva el nombre de la institución y para UAQ se presenta la facultad o el tipo de usuario. Los resultados se pueden exportar a CSV.
+
+### Desbloqueo administrativo atribuido a un alumno
+
+Desde **Alumnos Internos Registrados**, el administrador puede seleccionar un equipo configurado y desbloquearlo para el alumno seleccionado. Solo después de que el kiosco acepte la petición se guarda un acceso en `access_logs` y dos eventos en `received_logins`: registro simulado y desbloqueo simulado. Las acciones llevan el sufijo `_simulado` y el resultado `(simulación)`, para distinguir la atribución administrativa de un registro/autenticación realizado directamente por el alumno. El alumno no se vuelve a insertar en `internal_students`.
+
+Al borrar todas las PCs configuradas, se vacía `kiosks.json` y se eliminan de `kiosk_heartbeats` únicamente las IP asociadas a esos equipos.
+
 ### `schema_migrations`
 
 Registra migraciones de datos ya ejecutadas. Esto hace explícito y revisable el proceso de actualización de esquema.
