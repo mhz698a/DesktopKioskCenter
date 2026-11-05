@@ -14,10 +14,16 @@ FIELDS = [("nombres", "Nombres"), ("apellidos", "Apellidos"), ("email", "Correo 
 
 
 class InternalStudentsBackend(QObject):
-    def __init__(self, view, database: Database, parent=None):
+    def __init__(
+        self, view, database: Database, parent=None, threadpool=None
+    ):
         super().__init__(parent)
         self.view, self.database = view, database
+        self.threadpool = threadpool or QThreadPool.globalInstance()
         self._selected_id = None
+        self._closing = False
+        self._workers = set()
+        self._kiosks_by_host = {}
         self._records_by_id = {}
         self._last_records = None
         view.add_requested.connect(self.add_student)
@@ -25,9 +31,13 @@ class InternalStudentsBackend(QObject):
         view.save_requested.connect(self.save_student)
         view.delete_requested.connect(self.delete_student)
         view.revert_requested.connect(self.revert_student)
+        view.unlock_for_student_requested.connect(self.unlock_for_student)
         self.refresh()
+        self.refresh_equipment_choices()
 
     def refresh(self, selected_id=None, preserve_editor=False):
+        if self._closing:
+            return
         records = self.database.list_internal_students()
         if preserve_editor and records == self._last_records:
             return
