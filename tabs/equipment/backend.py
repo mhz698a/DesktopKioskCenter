@@ -5,7 +5,10 @@ from PyQt6.QtWidgets import (
     QDialog, QDialogButtonBox, QFormLayout, QLineEdit, QMessageBox, QVBoxLayout,
 )
 
-from action_req import ActionWorker, BulkPCControlWorker, PCControlWorker, ReceiveIPWorker
+from action_req import (
+    ActionWorker, BulkPCControlWorker, BulkReceiveIPWorker,
+    PCControlWorker, ReceiveIPWorker,
+)
 from tabs.equipment.bulk_dlg_add import KioskDialog
 from const import DEFAULT_TOKEN, Kiosk
 from database import Database
@@ -54,6 +57,8 @@ class EquipmentBackend(QObject):
         self.view.restart_all_requested.connect(
             lambda: self.send_bulk_pc_control("restart-pc")
         )
+        self.view.send_ip_all_requested.connect(self.send_server_ip_to_all)
+        self.view.delete_all_requested.connect(self.delete_all)
         self.view.admin_credentials_requested.connect(self.show_admin_credentials)
         self.view.delete_requested.connect(self.delete_selected)
         self.view.send_ip_requested.connect(self.send_server_ip_to_selected)
@@ -288,6 +293,101 @@ class EquipmentBackend(QObject):
             return
         next_index = min(index, len(self.kiosks) - 1) if self.kiosks else None
         self.refresh_table(selected_index=next_index)
+
+    def delete_all(self):
+        """Retira todos los equipos configurados y limpia sus heartbeats asociados."""
+        if self._closing:
+            return
+        if not self.kiosks:
+            cQMsgBox.information(
+                self.view, "Sin equipos", "No hay PCs registradas para eliminar."
+            )
+            return
+
+        previous_kiosks = list(self.kiosks)
+        answer = cQMsgBox.question(
+            self.view,
+            "Borrar todas las PCs",
+            f"Se eliminarán las {len(previous_kiosks)} PCs de la configuración "
+            "y sus estados de heartbeat. Esta acción no se puede deshacer. ¿Deseas continuar?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+
+        self.kiosks = []
+        try:
+            save_kiosks(self.kiosks)
+            self.database.delete_kiosk_heartbeats(
+                [kiosk.host for kiosk in previous_kiosks]
+            )
+        except Exception as exc:
+            self.kiosks = previous_kiosks
+            try:
+                save_kiosks(self.kiosks)
+            except OSError:
+                pass
+            cQMsgBox.critical(
+                self.view,
+                "No se pudieron borrar todas las PCs",
+                f"No se completó la operación. Se intentó restaurar la configuración original.\n\n{exc}",
+            )
+            self.refresh_table()
+            return
+
+        self.refresh_table()
+        cQMsgBox.information(
+            self.view, "PCs eliminadas",
+            f"Se eliminaron {len(previous_kiosks)} PCs y sus estados de heartbeat.",
+        )
+
+    def send_server_ip_to_all(self):
+        """Confirma y envía la IP central a todos los equipos configurados."""
+        if self._closing:
+            return
+        if not self.kiosks:
+            cQMsgBox.information(
+                self.view, "Sin equipos", "No hay PCs registradas para enviarles la IP."
+            )
+            return
+
+        main_window = self.parent()
+        detect_server_ip = getattr(main_window, "detect_server_ip", None)
+        if not callable(detect_server_ip):
+            cQMsgBox.critical(
+                self.view, "Error al obtener la IP", "No se pudo determinar la IP del servidor."
+            )
+            return
+        server_ip = detect_server_ip()
+        if not server_ip or server_ip == "No disponible":
+            cQMsgBox.critical(
+                self.view, "Error al obtener la IP", "No se pudo determinar la IP del servidor."
+            )
+            return
+
+        answer = cQMsgBox.question(
+            self.view,
+            "Enviar IP a todas las PCs",
+            f"Se enviará la IP del servidor ({server_ip}) a las "
+            f"{len(self.kiosks)} PCs registradas. Las que no respondan se reportarán "
+            "como fallidas. ¿Deseas continuar?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+
+        worker = BulkReceiveIPWorker(
+            list(self.kiosks), self._auth_headers(), server_ip, max_workers=8
+        )
+        self._workers.add(worker)
+        worker.signals.success.connect(self.on_receive_ip_success)
+        worker.signals.error.connect(self.on_action_error)
+        worker.signals.finished.connect(
+            lambda *_args, current=worker: self._forget_worker(current)
+        )
+        self.threadpool.start(worker)
 
     def send_selected_action(self, action):
         index = self.selected_index
