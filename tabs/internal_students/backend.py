@@ -62,9 +62,94 @@ class InternalStudentsBackend(QObject):
         if student_id < 0 or int(student_id) not in self._records_by_id:
             self._selected_id = None
             self.view.editor_panel.clear_record()
+            self.view.set_student_selected(False)
             return
         self._selected_id = int(student_id)
         self.view.editor_panel.set_record(self._records_by_id[self._selected_id])
+        self.view.set_student_selected(True)
+
+    def refresh_equipment_choices(self):
+        """Recarga las etiquetas registradas sin perder la selección del combo."""
+        if self._closing:
+            return
+        try:
+            kiosks = load_kiosks()
+        except Exception as exc:
+            cQMsgBox.critical(
+                self.view, "Error al leer equipos",
+                f"No se pudo cargar la lista de PCs registradas.\\n\\n{exc}",
+            )
+            kiosks = []
+        self._kiosks_by_host = {kiosk.host: kiosk for kiosk in kiosks}
+        self.view.set_equipment_options(kiosks)
+
+    def unlock_for_student(self):
+        if self._closing or self._selected_id not in self._records_by_id:
+            return
+        host = self.view.selected_equipment_host()
+        kiosk = self._kiosks_by_host.get(host)
+        if kiosk is None:
+            cQMsgBox.warning(
+                self.view, "Selecciona un equipo", "Selecciona una PC registrada."
+            )
+            return
+
+        student = dict(self._records_by_id[self._selected_id])
+        answer = cQMsgBox.question(
+            self.view,
+            "Desbloquear equipo para alumno",
+            f"Se enviará el desbloqueo a «{kiosk.name}» para "
+            f"{student.get('nombres', '')} {student.get('apellidos', '')}. "
+            "Si el kiosco acepta la solicitud, el acceso se registrará a nombre "
+            "del alumno y se crearán eventos de registro/desbloqueo marcados "
+            "como simulación administrativa. ¿Continuar?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+
+        worker = StudentUnlockWorker(
+            kiosk, student, f"http://{kiosk.host}:{kiosk.port}",
+            EquipmentBackend._auth_headers(),
+        )
+        self._workers.add(worker)
+        worker.signals.success.connect(self.on_student_unlock_success)
+        worker.signals.error.connect(self.on_student_unlock_error)
+        worker.signals.finished.connect(self._forget_worker)
+        self.threadpool.start(worker)
+
+    def on_student_unlock_success(self, kiosk, student, title, message):
+        if self._closing:
+            return
+        try:
+            self.database.record_manual_student_unlock(
+                kiosk_name=kiosk.name, client_ip=kiosk.host, student=student
+            )
+        except Exception as exc:
+            cQMsgBox.critical(
+                self.view, "Equipo desbloqueado; auditoría incompleta",
+                f"El equipo aceptó el desbloqueo, pero no se pudieron guardar "
+                f"los eventos de auditoría.\\n\\n{exc}",
+            )
+            return
+        cQMsgBox.information(
+            self.view, title,
+            message + "\\n\\nEl acceso y los eventos simulados quedaron registrados.",
+        )
+
+    def on_student_unlock_error(self, title, message):
+        if not self._closing:
+            cQMsgBox.critical(self.view, title, message)
+
+    def _forget_worker(self, worker):
+        self._workers.discard(worker)
+
+    def stop(self):
+        self._closing = True
+
+    def release_workers(self):
+        self._workers.clear()
 
     def add_student(self):
         dialog = UserRecordDialog("Agregar Alumno", FIELDS, self.view)
