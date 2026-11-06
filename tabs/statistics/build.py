@@ -92,7 +92,7 @@ class StatisticsTab(QWidget):
             "Accesos por periodo", horizontal=False, parent=self.charts_panel
         )
         self.origin_chart = BarChartWidget(
-            "Procedencia (universidades y público general)",
+            "Procedencia (universidad, público general y UAQ)",
             horizontal=True,
             parent=self.charts_panel,
         )
