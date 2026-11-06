@@ -29,7 +29,7 @@ GROUPING_TITLES = {
 def _chart_image(title, values, *, horizontal=False):
     """Renderiza una gráfica Qt a QImage sin mostrar una ventana adicional."""
     chart = BarChartWidget(title, horizontal=horizontal)
-    chart.resize(1100 if horizontal else 1100, 340)
+    chart.resize(1100 if horizontal else 900, 340)
     chart.set_data(values)
     chart.ensurePolished()
 
@@ -157,7 +157,7 @@ def export_statistics_pdf(
             (
                 faculty_url,
                 _chart_image(
-                    "Accesos por facultad de la UAQ",
+                    "Accesos por facultad",
                     faculty_data,
                     horizontal=True,
                 ),
