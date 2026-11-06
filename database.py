@@ -723,24 +723,37 @@ class Database:
                 )
             return int(cursor.lastrowid)
 
-    def record_manual_student_unlock(
-        self, *, kiosk_name: str, client_ip: str, student: dict
+    def record_manual_user_session(
+        self, *, kiosk_name: str, client_ip: str, user: dict
     ) -> dict:
-        """Registra un desbloqueo administrativo atribuido a un alumno.
+        """Registra una sesión asignada desde el panel administrativo.
 
-        Se insertan dos eventos de auditoría (registro y desbloqueo simulados) y
-        un acceso real en una sola transacción. No se duplica el registro del alumno.
+        La asignación se marca como simulación en received_logins para distinguirla
+        del registro/inicio de sesión hecho directamente en el kiosco. El acceso
+        queda atribuido al usuario real seleccionado y las tres filas se guardan
+        en una sola transacción.
         """
-        identifier = str(student.get("email") or student.get("expediente") or "").strip()
-        if not identifier:
-            raise ValueError("El alumno debe tener correo o expediente para auditar el acceso.")
+        user_type = str(user.get("tipo_usuario") or "Alumno interno").strip()
+        if user_type not in ("Alumno interno", "Público en general"):
+            raise ValueError("La asignación remota solo admite alumnos internos y público en general.")
 
-        name = str(student.get("nombres", "") or "").strip()
-        surname = str(student.get("apellidos", "") or "").strip()
-        faculty = str(student.get("facultad", "") or "").strip()
+        identifier = str(user.get("email") or user.get("expediente") or "").strip()
+        if not identifier:
+            raise ValueError("El usuario debe tener correo o expediente para auditar la sesión.")
+
         equipment = str(kiosk_name or "").strip()
         source_ip = str(client_ip or "").strip()
-        user_type = "Alumno interno"
+        names = str(user.get("nombres", "") or "").strip()
+        surnames = str(user.get("apellidos", "") or "").strip()
+        faculty = str(user.get("facultad", "") or "").strip()
+        university = (
+            str(user.get("universidad", "") or "").strip()
+            if user_type == "Estudiante Externo" else ""
+        )
+        if user_type == "Público en general":
+            registration_action = "registro_usuario_simulado"
+        else:
+            registration_action = "registro_alumno_simulado"
 
         with self.connection() as connection:
             registration = connection.execute(
@@ -749,9 +762,11 @@ class Database:
                     (kiosk_name, client_ip, identifier, user_type, action, result, message)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (equipment, source_ip, identifier, user_type,
-                 "registro_alumno_simulado", "registrado (simulación)",
-                 "Registro atribuido al alumno durante una asignación administrativa."),
+                (
+                    equipment, source_ip, identifier, user_type,
+                    registration_action, "registrado (simulación administrativa)",
+                    "Registro atribuido al usuario durante una asignación administrativa.",
+                ),
             )
             unlock = connection.execute(
                 """
@@ -759,9 +774,11 @@ class Database:
                     (kiosk_name, client_ip, identifier, user_type, action, result, message)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (equipment, source_ip, identifier, user_type,
-                 "unlock_login_simulado", "permitido (simulación)",
-                 "Desbloqueo remoto aceptado y atribuido al alumno seleccionado."),
+                (
+                    equipment, source_ip, identifier, user_type,
+                    "unlock_login_simulado", "permitido (simulación administrativa)",
+                    "El kiosco confirmó el inicio de sesión atribuido al usuario seleccionado.",
+                ),
             )
             access = connection.execute(
                 """
@@ -770,15 +787,27 @@ class Database:
                      universidad_externa, tipo_usuario)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (equipment, name, surname,
-                 str(student.get("expediente", "") or "").strip(),
-                 faculty, "", user_type),
+                (
+                    equipment, names, surnames,
+                    str(user.get("expediente", "") or "").strip(),
+                    faculty, university, user_type,
+                ),
             )
             return {
                 "registration_log_id": int(registration.lastrowid),
                 "unlock_log_id": int(unlock.lastrowid),
                 "access_log_id": int(access.lastrowid),
             }
+
+    def record_manual_student_unlock(
+        self, *, kiosk_name: str, client_ip: str, student: dict
+    ) -> dict:
+        """Compatibilidad con las pruebas y llamadas de asignación de alumno."""
+        return self.record_manual_user_session(
+            kiosk_name=kiosk_name,
+            client_ip=client_ip,
+            user={**student, "tipo_usuario": "Alumno interno"},
+        )
 
     def count_access_logs(self) -> dict:
         """Calcula total de accesos y subtotales por tipo de usuario y equipo."""
