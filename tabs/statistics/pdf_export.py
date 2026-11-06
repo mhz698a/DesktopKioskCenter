@@ -214,7 +214,7 @@ def export_statistics_pdf(
     document.setPageSize(
         writer.pageLayout().paintRect(QPageLayout.Unit.Point).size()
     )
-    document.print_(writer)
+    document.print(writer)
 
     if not output_path.is_file() or output_path.stat().st_size < 5:
         raise OSError("Qt no pudo generar el archivo PDF solicitado.")
