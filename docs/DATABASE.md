@@ -73,7 +73,7 @@ Cada IP de origen tiene un registro con clave primaria `client_ip`, la referenci
 
 ### Reportes de estadísticas
 
-La pestaña **Estadísticas** consulta `access_logs` por un rango inclusivo de fechas y permite agrupar por día, semana (lunes a domingo) o mes. Cada periodo se desglosa por procedencia: universidad externa, público en general o UAQ; para universidades se conserva el nombre de la institución y para UAQ se presenta la facultad o el tipo de usuario. El panel derecho representa la evolución de accesos por periodo y el desglose de procedencias. El reporte tabular se exporta a CSV y el panel gráfico se exporta como PNG compuesto y como dos PNG independientes.
+La pestaña **Estadísticas** consulta `access_logs` por un rango inclusivo de fechas y permite agrupar por día, semana (lunes a domingo) o mes. Cada periodo se desglosa por procedencia: universidad externa, público en general o UAQ; para universidades se conserva el nombre de la institución y para UAQ se presenta la facultad o el tipo de usuario. El panel derecho representa la evolución de accesos por periodo y el desglose de procedencias. El reporte tabular se exporta a CSV y el panel gráfico se exporta como PNG compuesto, junto con cada una de las tres gráficas en PNG independiente.
 
 ### Gráficas de procedencia y exportación PDF
 
