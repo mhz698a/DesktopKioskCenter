@@ -73,13 +73,17 @@ Cada IP de origen tiene un registro con clave primaria `client_ip`, la referenci
 
 ### Reportes de estadísticas
 
-La pestaña **Estadísticas** consulta `access_logs` por un rango inclusivo de fechas y permite agrupar por día, semana (lunes a domingo) o mes. Cada periodo se desglosa por procedencia: universidad externa, público en general o UAQ; para universidades se conserva el nombre de la institución y para UAQ se presenta la facultad o el tipo de usuario. Los resultados se pueden exportar a CSV.
+La pestaña **Estadísticas** consulta `access_logs` por un rango inclusivo de fechas y permite agrupar por día, semana (lunes a domingo) o mes. Cada periodo se desglosa por procedencia: universidad externa, público en general o UAQ; para universidades se conserva el nombre de la institución y para UAQ se presenta la facultad o el tipo de usuario. El panel derecho representa la evolución de accesos por periodo y el desglose de procedencias. El reporte tabular se exporta a CSV y el panel gráfico se exporta como PNG compuesto y como dos PNG independientes.
 
 ### Desbloqueo administrativo atribuido a un alumno
 
-Desde **Alumnos Internos Registrados**, el administrador puede seleccionar un equipo configurado y desbloquearlo para el alumno seleccionado. Solo después de que el kiosco acepte la petición se guarda un acceso en `access_logs` y dos eventos en `received_logins`: registro simulado y desbloqueo simulado. Las acciones llevan el sufijo `_simulado` y el resultado `(simulación)`, para distinguir la atribución administrativa de un registro/autenticación realizado directamente por el alumno. El alumno no se vuelve a insertar en `internal_students`.
+Desde el panel de edición de **Alumnos Internos Registrados** y de **Usuarios Externos Registrados** de tipo **Público en general**, el administrador puede seleccionar un equipo configurado y asignarlo a la persona seleccionada. La petición inicia una sesión real en DesktopKiosk y muestra el nombre de esa persona en el panel flotante de sesión. Solo después de que el kiosco acepte la petición se guarda un acceso en `access_logs` y dos eventos de auditoría en `received_logins`: registro atribuido e inicio de sesión atribuido. Los eventos identifican la asignación como simulación administrativa para distinguirla de un registro/autenticación ejecutado directamente por la persona. El registro original no se vuelve a insertar.
 
 Al borrar todas las PCs configuradas, se vacía `kiosks.json` y se eliminan de `kiosk_heartbeats` únicamente las IP asociadas a esos equipos.
+
+### Datos de demostración de estadísticas
+
+El script local `devtools/seed_fake_statistics.py` genera accesos y logs de peticiones de demostración para las universidades, el público en general y alumnos UAQ. Se ejecuta desde la raíz del repositorio con `python devtools/seed_fake_statistics.py`. El script reemplaza únicamente sus propios registros, identificados por el prefijo `DEMO_STATS:`, y conserva los registros reales. El directorio `devtools` está excluido de PyInstaller y no forma parte del instalador de producción.
 
 ### `schema_migrations`
 
