@@ -239,14 +239,12 @@ class StatisticsTab(QWidget):
             "Accesos por periodo", horizontal=False, parent=general_page
         )
         self.general_origin_chart = BarChartWidget(
-            "Procedencia general (UAQ consolidada)",
+            "Procedencia general (facultades consolidadas)",
             horizontal=True,
             parent=general_page,
         )
         general_layout.addWidget(self.access_chart, 1)
         general_layout.addWidget(self.general_origin_chart, 1)
-        self.charts_panel.addTab(general_page, "Procedencia General")
-
         faculties_page = QWidget(self.charts_panel)
         faculties_layout = QVBoxLayout(faculties_page)
         faculties_layout.setContentsMargins(6, 6, 6, 6)
@@ -256,12 +254,13 @@ class StatisticsTab(QWidget):
             faculties_page,
         ))
         self.faculty_chart = BarChartWidget(
-            "Accesos por facultad UAQ",
+            "Accesos por facultad",
             horizontal=True,
             parent=faculties_page,
         )
         faculties_layout.addWidget(self.faculty_chart, 1)
         self.charts_panel.addTab(faculties_page, "Procedencia Facultades")
+        self.charts_panel.addTab(general_page, "Procedencia General")
 
         splitter.addWidget(report_panel)
         splitter.addWidget(self.charts_panel)
