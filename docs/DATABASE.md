@@ -75,6 +75,17 @@ Cada IP de origen tiene un registro con clave primaria `client_ip`, la referenci
 
 La pestaña **Estadísticas** consulta `access_logs` por un rango inclusivo de fechas y permite agrupar por día, semana (lunes a domingo) o mes. Cada periodo se desglosa por procedencia: universidad externa, público en general o UAQ; para universidades se conserva el nombre de la institución y para UAQ se presenta la facultad o el tipo de usuario. El panel derecho representa la evolución de accesos por periodo y el desglose de procedencias. El reporte tabular se exporta a CSV y el panel gráfico se exporta como PNG compuesto y como dos PNG independientes.
 
+### Gráficas de procedencia y exportación PDF
+
+El panel de gráficas de **Estadísticas** se divide en dos pestañas:
+
+- **Procedencia General**: agrega todos los accesos de las facultades y del personal interno en una sola categoría llamada `Universidad Autónoma de Querétaro`. Las universidades externas se mantienen separadas por institución y el público general aparece como otra categoría.
+- **Procedencia Facultades**: muestra por separado cada facultad con accesos de alumnos internos UAQ. Los accesos del personal interno no se atribuyen a una facultad.
+
+El botón **Exportar PDF** abre un diálogo en el que se pueden marcar uno o varios periodos (día, semana y mes), confirmar la ruta y el nombre del archivo y decidir si se abre el documento al terminar. Cancelar el diálogo o cancelar la selección de destino cancela toda la exportación. El PDF incluye tablas de detalle y las gráficas de evolución, procedencia general y facultades para cada periodo seleccionado.
+
+La generación de PDF utiliza `QPdfWriter` y `QTextDocument` de Qt; no agrega dependencias de terceros.
+
 ### Desbloqueo administrativo atribuido a un alumno
 
 Desde el panel de edición de **Alumnos Internos Registrados** y de **Usuarios Externos Registrados** de tipo **Público en general**, el administrador puede seleccionar un equipo configurado y asignarlo a la persona seleccionada. La petición inicia una sesión real en DesktopKiosk y muestra el nombre de esa persona en el panel flotante de sesión. Solo después de que el kiosco acepte la petición se guarda un acceso en `access_logs` y dos eventos de auditoría en `received_logins`: registro atribuido e inicio de sesión atribuido. Los eventos identifican la asignación como simulación administrativa para distinguirla de un registro/autenticación ejecutado directamente por la persona. El registro original no se vuelve a insertar.
