@@ -7,7 +7,7 @@ from PyQt6.QtGui import QDesktopServices
 from css.cQDialogs import cQMsgBox
 from database import Database
 from tabs.statistics.pdf_export import export_statistics_pdf
-from tabs.statistics.report_data import build_chart_data
+from tabs.statistics.report_data import build_chart_data, build_zero_access_data
 
 
 class StatisticsBackend(QObject):
@@ -30,6 +30,7 @@ class StatisticsBackend(QObject):
                 filters["end_date"],
                 grouping,
             )
+            catalog = self.database.get_access_report_catalog()
         except (ValueError, OSError) as exc:
             cQMsgBox.warning(self.view, "No se pudo generar el reporte", str(exc))
             return
@@ -44,6 +45,7 @@ class StatisticsBackend(QObject):
         period_chart_data, general_data, faculty_data = build_chart_data(
             rows, grouping
         )
+        zero_access_data = build_zero_access_data(rows, catalog)
         formatted_rows = []
         for record in rows:
             item = dict(record)
@@ -58,6 +60,7 @@ class StatisticsBackend(QObject):
             period_chart_data,
             general_data,
             faculty_data,
+            zero_access_data,
         )
 
     def export_pdf(self):
@@ -75,6 +78,7 @@ class StatisticsBackend(QObject):
                     filters["end_date"],
                     grouping,
                 )
+            catalog = self.database.get_access_report_catalog()
         except (ValueError, OSError) as exc:
             cQMsgBox.warning(
                 self.view,
@@ -109,6 +113,7 @@ class StatisticsBackend(QObject):
                 start_date=filters["start_date"],
                 end_date=filters["end_date"],
                 reports=reports,
+                catalog=catalog,
             )
         except (OSError, RuntimeError, ValueError) as exc:
             cQMsgBox.critical(
