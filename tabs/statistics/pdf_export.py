@@ -42,7 +42,7 @@ def _chart_image(title, values, *, horizontal=False):
     chart.set_data(values)
     width = 1400
     height = (
-        max(250, 58 + len(values) * 36)
+        max(250, 58 + len(values) * 48)
         if horizontal
         else 390
     )
