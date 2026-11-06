@@ -118,9 +118,9 @@ def export_statistics_pdf(
             h3 { font-size: 11pt; margin: 12pt 0 5pt 0; }
             p.meta { color: #596575; margin: 0 0 12pt 0; }
             p.total { font-size: 11pt; font-weight: bold; margin: 6pt 0 10pt 0; }
-            table { border-collapse: collapse; width: 100%; font-size: 8pt; }
+            table { border-collapse: collapse; table-layout: fixed; width: 100%; font-size: 8pt; }
             th { background-color: #e9edf2; text-align: left; }
-            th, td { border: 1px solid #cbd2da; padding: 4pt; }
+            th, td { width: 25%; border: 1px solid #cbd2da; padding: 4pt; word-wrap: break-word; }
             td.number { text-align: right; }
             img.chart { width: 100%; }
             .section-break { height: 10pt; }
