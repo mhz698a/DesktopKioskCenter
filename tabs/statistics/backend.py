@@ -17,6 +17,7 @@ class StatisticsBackend(QObject):
 
     def generate_report(self):
         filters = self.view.get_report_filters()
+        grouping = filters["grouping"]
         try:
             rows = self.database.generate_access_report(
                 filters["start_date"], filters["end_date"], filters["grouping"]
