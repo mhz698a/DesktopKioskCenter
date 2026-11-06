@@ -54,7 +54,12 @@ def _table_html(rows):
     body = []
     for row in rows:
         period = escape(str(row.get("period", "")))
-        origin = escape(str(row.get("origin", "")))
+        raw_origin = str(row.get("origin", ""))
+        origin_label = (
+            "Universidad Autónoma de Querétaro"
+            if raw_origin == "UAQ" else raw_origin
+        )
+        origin = escape(origin_label)
         source = escape(str(row.get("source", "")))
         total = int(row.get("total", 0))
         body.append(
