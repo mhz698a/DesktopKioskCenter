@@ -5,6 +5,7 @@ from tabs.statistics.report_data import (
     PUBLIC_GENERAL_LABEL,
     UAQ_FULL_NAME,
     build_chart_data,
+    build_zero_access_data,
 )
 
 
@@ -85,6 +86,66 @@ class StatisticsChartDataTests(unittest.TestCase):
         ]
         monthly, _general, _faculties = build_chart_data(monthly_rows, "month")
         self.assertEqual(dict(monthly), {"11/2026": 20})
+
+
+    def test_zero_access_catalog_is_reported_separately_from_positive_charts(self):
+        rows = [
+            {
+                "period": "2026-11-02",
+                "origin": "Universidad",
+                "source": "Universidad X",
+                "total": 7,
+            },
+            {
+                "period": "2026-11-02",
+                "origin": "UAQ",
+                "source": "Facultad de Informática",
+                "total": 4,
+            },
+        ]
+        catalog = {
+            "universities": ["Universidad X", "Universidad Y"],
+            "faculties": [
+                "Facultad de Informática",
+                "Facultad de Derecho",
+            ],
+        }
+
+        _periods, general, faculties = build_chart_data(rows, "day")
+        zero_access = build_zero_access_data(rows, catalog)
+
+        self.assertEqual(dict(general), {
+            "Universidad X": 7,
+            UAQ_FULL_NAME: 4,
+        })
+        self.assertEqual(dict(faculties), {
+            "Facultad de Informática": 4,
+        })
+        self.assertEqual(zero_access, {
+            "universities": ["Universidad Y"],
+            "faculties": ["Facultad de Derecho"],
+        })
+
+    def test_zero_access_lists_are_empty_when_every_catalog_entry_has_access(self):
+        rows = [
+            {
+                "period": "2026-11-02",
+                "origin": "Universidad",
+                "source": "Universidad X",
+                "total": 1,
+            },
+            {
+                "period": "2026-11-02",
+                "origin": "UAQ",
+                "source": "Facultad de Informática",
+                "total": 2,
+            },
+        ]
+        zero_access = build_zero_access_data(rows, {
+            "universities": ["Universidad X"],
+            "faculties": ["Facultad de Informática"],
+        })
+        self.assertEqual(zero_access, {"universities": [], "faculties": []})
 
     def test_invalid_grouping_is_rejected(self):
         with self.assertRaises(ValueError):
