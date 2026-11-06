@@ -1,19 +1,24 @@
 import sqlite3
 
-from PyQt6.QtCore import QObject
+from PyQt6.QtCore import QObject, QThreadPool
 from PyQt6.QtWidgets import QDialog, QMessageBox
 
 from css.cQDialogs import cQMsgBox
 from database import Database
+from tabs.user_assignment import UserAssignmentController
 from user_record_dialog import UserRecordDialog
 
 FIELDS = [("nombres", "Nombres"), ("apellidos", "Apellidos"), ("email", "Email"), ("tipo_usuario", "Tipo de usuario"), ("universidad", "Universidad Perteneciente")]
 
 
 class ExternalUsersBackend(QObject):
-    def __init__(self, view, database: Database, parent=None):
+    def __init__(
+        self, view, database: Database, parent=None, threadpool=None
+    ):
         super().__init__(parent)
         self.view, self.database = view, database
+        self.threadpool = threadpool or QThreadPool.globalInstance()
+        self._closing = False
         self._selected_id = None
         self._records_by_id = {}
         self._last_records = None
@@ -23,8 +28,17 @@ class ExternalUsersBackend(QObject):
         view.delete_requested.connect(self.delete_user)
         view.revert_requested.connect(self.revert_user)
         self.refresh()
+        self.assignment_controller = UserAssignmentController(
+            view.editor_panel,
+            database,
+            self.threadpool,
+            self._selected_user_record,
+            parent=self,
+        )
 
     def refresh(self, selected_id=None, preserve_editor=False):
+        if self._closing:
+            return
         records = self.database.list_external_users()
         if preserve_editor and records == self._last_records:
             return
@@ -52,6 +66,22 @@ class ExternalUsersBackend(QObject):
             return
         self._selected_id = int(user_id)
         self.view.editor_panel.set_record(self._records_by_id[self._selected_id])
+
+    def _selected_user_record(self):
+        if self._selected_id is None:
+            return None
+        return self._records_by_id.get(self._selected_id)
+
+    def refresh_equipment_choices(self):
+        if not self._closing:
+            self.assignment_controller.refresh_equipment_choices()
+
+    def stop(self):
+        self._closing = True
+        self.assignment_controller.stop()
+
+    def release_workers(self):
+        self.assignment_controller.release_workers()
 
     def add_user(self):
         dialog = UserRecordDialog("Agregar Usuario", FIELDS, self.view)
