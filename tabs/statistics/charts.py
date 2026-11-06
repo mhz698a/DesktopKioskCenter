@@ -32,7 +32,7 @@ class BarChartWidget(QWidget):
         self._items = normalized
 
         if self.horizontal:
-            self.setMinimumHeight(max(240, 58 + len(normalized) * 36))
+            self.setMinimumHeight(max(240, 58 + len(normalized) * 48))
             self.setMinimumWidth(420)
         else:
             # Conserva espacio legible para cada periodo; el contenedor puede
@@ -93,13 +93,17 @@ class BarChartWidget(QWidget):
         maximum = max((value for _, value in items), default=1) or 1
         top = 44
         bottom = self.height() - 12
-        row_height = max(32.0, (bottom - top) / max(1, len(items)))
+        row_height = max(48.0, (bottom - top) / max(1, len(items)))
 
         label_width = min(330, max(150, int(self.width() * 0.42)))
         bar_left = 14 + label_width
         value_area = 48
         bar_width = max(24, self.width() - bar_left - value_area - 18)
-        metrics = QFontMetrics(painter.font())
+        label_font = painter.font()
+        label_font.setBold(False)
+        label_font.setPointSize(8)
+        painter.setFont(label_font)
+        metrics = QFontMetrics(label_font)
 
         for index, (label, value) in enumerate(items):
             y = top + index * row_height
