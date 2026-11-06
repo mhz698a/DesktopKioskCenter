@@ -3,7 +3,7 @@ import re
 
 from PyQt6.QtCore import QRegularExpression, pyqtSignal
 from PyQt6.QtGui import QRegularExpressionValidator
-from PyQt6.QtWidgets import QComboBox, QFormLayout, QHBoxLayout, QLineEdit, QPushButton, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QComboBox, QFormLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QVBoxLayout, QWidget
 
 from user_record_dialog import FACULTADES_UAQ, TIPOS_USUARIO, UNIVERSIDADES_QUERETARO
 
