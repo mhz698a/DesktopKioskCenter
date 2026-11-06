@@ -116,9 +116,9 @@ class BarChartWidget(QWidget):
             painter.setPen(text)
             painter.drawText(
                 label_rect,
-                Qt.AlignmentFlag.AlignLeft
-                | Qt.AlignmentFlag.AlignVCenter
-                | Qt.TextFlag.TextWordWrap,
+                int(Qt.AlignmentFlag.AlignLeft)
+                | int(Qt.AlignmentFlag.AlignVCenter)
+                | int(Qt.TextFlag.TextWordWrap),
                 label,
             )
 
