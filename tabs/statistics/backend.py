@@ -122,11 +122,15 @@ class StatisticsBackend(QObject):
             for period_rows in reports.values()
             for row in period_rows
         )
-        if total <= 0:
+        has_catalog_entities = bool(
+            catalog.get("universities") or catalog.get("faculties")
+        )
+        if total <= 0 and not has_catalog_entities:
             cQMsgBox.information(
                 self.view,
-                "Sin accesos",
-                "No existen accesos en el rango de fechas y periodos seleccionados.",
+                "Sin datos para el reporte",
+                "No existen accesos ni universidades/facultades registradas "
+                "para incluir en el rango seleccionado.",
             )
             return
 
