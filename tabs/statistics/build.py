@@ -192,7 +192,7 @@ class StatisticsTab(QWidget):
         self.export_charts_button = QPushButton("Exportar gráficas PNG", self)
         self.export_pdf_button = QPushButton("Exportar PDF", self)
         self.export_button.setEnabled(False)
-        self.export_charts_button.setEnabled(False)
+        self.export_charts_button.setHidden(True)
         self.export_pdf_button.setEnabled(False)
 
         self.generate_button.clicked.connect(
