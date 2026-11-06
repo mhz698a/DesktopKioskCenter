@@ -123,6 +123,7 @@ class StatisticsBackend(QObject):
                 end_date=filters["end_date"],
                 reports=reports,
                 catalog=catalog,
+                paper_size=options.get("paper_size", "a4"),
             )
         except (OSError, RuntimeError, ValueError) as exc:
             cQMsgBox.critical(
