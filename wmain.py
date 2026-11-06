@@ -100,7 +100,8 @@ class MainWindow(QMainWindow):
             threadpool=self.threadpool,
         )
         self.external_users_backend = ExternalUsersBackend(
-            self.external_users_tab, self.database, self
+            self.external_users_tab, self.database, self,
+            threadpool=self.threadpool,
         )
         self.received_logins_backend = ReceivedLoginsBackend(
             self.received_logins_tab, self.database, self
@@ -145,6 +146,7 @@ class MainWindow(QMainWindow):
                 self.internal_students_backend.refresh_equipment_choices()
             elif index == 2:
                 self.external_users_backend.refresh(preserve_editor=True)
+                self.external_users_backend.refresh_equipment_choices()
             elif index == 3:
                 self.received_logins_backend.refresh()
             elif index == 4:
@@ -206,8 +208,10 @@ class MainWindow(QMainWindow):
         self.data_refresh_timer.stop()
         self.equipment_backend.stop()
         self.internal_students_backend.stop()
+        self.external_users_backend.stop()
         self.threadpool.clear()
         self.threadpool.waitForDone()
         self.equipment_backend.release_workers()
         self.internal_students_backend.release_workers()
+        self.external_users_backend.release_workers()
         event.accept()
