@@ -200,54 +200,69 @@ class BulkReceiveIPWorker(QRunnable):
                 return
 
 
-class StudentUnlockWorkerSignals(QObject):
+class AssignedSessionWorkerSignals(QObject):
     success = pyqtSignal(object, object, str, str)
     error = pyqtSignal(str, str)
     finished = pyqtSignal(object)
 
 
-class StudentUnlockWorker(QRunnable):
-    """Desbloquea un kiosco y devuelve el alumno para auditar la atribución."""
+class AssignedSessionWorker(QRunnable):
+    """Inicia una sesión remota para la identidad elegida en DesktopKioskCenter."""
 
-    def __init__(self, kiosk, student, base_url, headers):
+    def __init__(self, kiosk, user_data, base_url, headers):
         super().__init__()
         self.kiosk = kiosk
-        self.student = dict(student)
+        self.user_data = dict(user_data)
         self.base_url = base_url
         self.headers = dict(headers)
-        self.signals = StudentUnlockWorkerSignals()
+        self.signals = AssignedSessionWorkerSignals()
 
     def run(self):
         try:
             response = requests.post(
-                f"{self.base_url}/api/kiosk/unlock",
+                f"{self.base_url}/api/kiosk/assigned-session",
                 headers=self.headers,
-                timeout=(2, 2),
+                json={
+                    "action": "assign_session",
+                    "data": self.user_data,
+                },
+                timeout=(2, 4),
             )
             if response.status_code == 202:
                 self.signals.success.emit(
-                    self.kiosk, self.student, "Desbloqueo aceptado",
-                    f"El equipo «{self.kiosk.name}» aceptó el desbloqueo.",
+                    self.kiosk,
+                    self.user_data,
+                    "Sesión iniciada",
+                    f"El equipo «{self.kiosk.name}» inició sesión a nombre de "
+                    f"«{self.user_data.get('display_name', '')}».",
                 )
             elif response.status_code == 401:
                 self.signals.error.emit(
                     "Error de autenticación",
                     f"El equipo «{self.kiosk.name}» rechazó la solicitud. Revisa el token.",
                 )
+            elif response.status_code == 400:
+                self.signals.error.emit(
+                    "Datos inválidos",
+                    f"El equipo «{self.kiosk.name}» rechazó los datos de asignación: "
+                    f"{response.text[:200]}",
+                )
             elif response.status_code == 404:
                 self.signals.error.emit(
                     "Ruta no encontrada",
-                    f"El equipo «{self.kiosk.name}» no ofrece la ruta /api/kiosk/unlock.",
+                    f"El equipo «{self.kiosk.name}» todavía no ofrece "
+                    "la ruta /api/kiosk/assigned-session.",
                 )
             else:
                 self.signals.error.emit(
                     "Error en la petición",
-                    f"HTTP {response.status_code} en «{self.kiosk.name}»:\n{response.text[:200]}",
+                    f"HTTP {response.status_code} en «{self.kiosk.name}»:\n"
+                    f"{response.text[:200]}",
                 )
         except requests.RequestException as exc:
             self.signals.error.emit(
                 "Error de comunicación",
-                f"No se pudo conectar con «{self.kiosk.name}».\n\n{exc}",
+                f"No se pudo iniciar la sesión en «{self.kiosk.name}».\n\n{exc}",
             )
         finally:
             self.signals.finished.emit(self)
