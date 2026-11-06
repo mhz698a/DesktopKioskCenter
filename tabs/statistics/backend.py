@@ -7,7 +7,11 @@ from PyQt6.QtGui import QDesktopServices
 from css.cQDialogs import cQMsgBox
 from database import Database
 from tabs.statistics.pdf_export import export_statistics_pdf
-from tabs.statistics.report_data import build_chart_data, build_zero_access_data
+from tabs.statistics.report_data import (
+    UAQ_FULL_NAME,
+    build_chart_data,
+    build_zero_access_data,
+)
 
 
 class StatisticsBackend(QObject):
@@ -46,6 +50,25 @@ class StatisticsBackend(QObject):
             rows, grouping
         )
         zero_access_data = build_zero_access_data(rows, catalog)
+        def university_group(record):
+            origin = str(record.get("origin") or "Sin clasificar")
+            source = str(record.get("source") or "Sin especificar")
+            if origin == "UAQ":
+                return UAQ_FULL_NAME
+            if origin == "Universidad":
+                return source or "Universidad no especificada"
+            if origin == "Público en general":
+                return "Público en general"
+            return origin
+
+        rows = sorted(
+            rows,
+            key=lambda record: (
+                university_group(record).casefold(),
+                str(record.get("period") or ""),
+                str(record.get("source") or "").casefold(),
+            ),
+        )
         formatted_rows = []
         for record in rows:
             item = dict(record)
