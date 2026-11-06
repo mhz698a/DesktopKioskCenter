@@ -4,8 +4,8 @@ No requieren Matplotlib ni dependencias externas; se pintan con QPainter y puede
 exportarse directamente a PNG mediante QWidget.grab().
 """
 from PyQt6.QtCore import Qt, QRectF
-from PyQt6.QtGui import QPainter, QPen, QBrush, QFontMetrics
-from PyQt6.QtWidgets import QPalette, QSizePolicy, QWidget
+from PyQt6.QtGui import QPainter, QPen, QBrush, QFontMetrics, QPalette
+from PyQt6.QtWidgets import QSizePolicy, QWidget
 
 
 class BarChartWidget(QWidget):
