@@ -51,9 +51,69 @@ def build_chart_data(rows, grouping):
         period_data.append((label, total))
 
     general_data = sorted(
-        general_origins.items(), key=lambda item: (-item[1], item[0].casefold())
+        (
+            (label, total)
+            for label, total in general_origins.items()
+            if total > 0
+        ),
+        key=lambda item: (-item[1], item[0].casefold()),
     )
     faculty_data = sorted(
-        faculties.items(), key=lambda item: (-item[1], item[0].casefold())
+        (
+            (label, total)
+            for label, total in faculties.items()
+            if total > 0
+        ),
+        key=lambda item: (-item[1], item[0].casefold()),
     )
     return period_data, general_data, faculty_data
+
+
+def build_zero_access_data(rows, catalog=None):
+    """Identifica universidades y facultades registradas sin accesos en el rango."""
+    catalog = catalog or {}
+    university_totals = defaultdict(int)
+    faculty_totals = defaultdict(int)
+
+    for row in rows:
+        origin = str(row.get("origin") or "")
+        source = str(row.get("source") or "")
+        total = max(0, int(row.get("total") or 0))
+        if origin == "Universidad":
+            university_totals[source] += total
+        elif origin == "UAQ" and source != "Trabajador interno":
+            faculty_totals[source] += total
+
+    all_universities = {
+        str(name).strip()
+        for name in catalog.get("universities", [])
+        if str(name).strip()
+    }
+    all_universities.update(
+        name for name in university_totals if name and name != "Universidad no especificada"
+    )
+    all_faculties = {
+        str(name).strip()
+        for name in catalog.get("faculties", [])
+        if str(name).strip()
+    }
+    all_faculties.update(
+        name for name in faculty_totals if name and name != "Facultad no especificada"
+    )
+
+    return {
+        "universities": sorted(
+            (
+                name for name in all_universities
+                if university_totals.get(name, 0) <= 0
+            ),
+            key=str.casefold,
+        ),
+        "faculties": sorted(
+            (
+                name for name in all_faculties
+                if faculty_totals.get(name, 0) <= 0
+            ),
+            key=str.casefold,
+        ),
+    }
