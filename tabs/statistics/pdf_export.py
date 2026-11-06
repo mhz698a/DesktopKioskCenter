@@ -307,9 +307,31 @@ def export_statistics_pdf(
             rows,
             grouping,
         )
-        period_chunks = _chunks(period_data, CHART_CHUNK_SIZE)
-        general_chunks = _chunks(general_data, CHART_CHUNK_SIZE)
-        faculty_chunks = _chunks(faculty_data, CHART_CHUNK_SIZE)
+        chart_groups = (
+            (
+                "Accesos por periodo",
+                _chunks(period_data, CHART_CHUNK_SIZE),
+            ),
+            (
+                "Procedencia general",
+                _chunks(general_data, CHART_CHUNK_SIZE),
+            ),
+            (
+                "Procedencia por facultad",
+                _chunks(faculty_data, CHART_CHUNK_SIZE),
+            ),
+        )
+        # Se intercalan los bloques para aprovechar los tres espacios de gráfica
+        # en cada página, incluso cuando una categoría requiere más páginas.
+        chart_items = []
+        max_chunks = max((len(chunks) for _title, chunks in chart_groups), default=0)
+        for chunk_index in range(max_chunks):
+            for title, chunks in chart_groups:
+                if chunk_index < len(chunks):
+                    chart_items.append((
+                        f"{title} · bloque {chunk_index + 1}",
+                        chunks[chunk_index],
+                    ))
 
         zero_access = (
             build_zero_access_data(rows, catalog)
@@ -324,13 +346,8 @@ def export_statistics_pdf(
         ]
         zero_chunks = _chunks(zero_items, ZERO_LIST_CHUNK_SIZE)
 
-        page_total = max(
-            1,
-            len(period_chunks),
-            len(general_chunks),
-            len(faculty_chunks),
-            len(zero_chunks),
-        )
+        chart_page_count = max(1, (len(chart_items) + 2) // 3)
+        page_total = max(chart_page_count, len(zero_chunks))
         for page_index in range(page_total):
             page_subtitle = (
                 f"{start_date} a {end_date} · hoja de gráficas "
@@ -356,41 +373,29 @@ def export_statistics_pdf(
                 ),
             )
 
-            period_values = (
-                period_chunks[page_index]
-                if page_index < len(period_chunks) else []
-            )
-            general_values = (
-                general_chunks[page_index]
-                if page_index < len(general_chunks) else []
-            )
-            faculty_values = (
-                faculty_chunks[page_index]
-                if page_index < len(faculty_chunks) else []
-            )
             zero_values = (
                 zero_chunks[page_index]
                 if page_index < len(zero_chunks) else []
             )
 
-            draw_chart_slot(
-                slots[0],
-                f"Accesos por periodo · bloque {page_index + 1}",
-                period_values,
-                placeholder="No hay periodos con accesos.",
-            )
-            draw_chart_slot(
-                slots[1],
-                f"Procedencia general · bloque {page_index + 1}",
-                general_values,
-                placeholder="No hay universidades con accesos positivos.",
-            )
-            draw_chart_slot(
-                slots[2],
-                f"Procedencia por facultad · bloque {page_index + 1}",
-                faculty_values,
-                placeholder="No hay facultades con accesos positivos.",
-            )
+            for slot_index in range(3):
+                item_index = page_index * 3 + slot_index
+                if item_index < len(chart_items):
+                    chart_title, chart_values = chart_items[item_index]
+                    draw_chart_slot(
+                        slots[slot_index],
+                        chart_title,
+                        chart_values,
+                        placeholder="No hay datos para esta gráfica.",
+                    )
+                else:
+                    draw_chart_slot(
+                        slots[slot_index],
+                        "Espacio gráfico disponible",
+                        [],
+                        placeholder="No hay más bloques de gráficas para mostrar.",
+                    )
+
             draw_zero_slot(slots[3], zero_values)
 
     def draw_detail_tables(rows, grouping):
