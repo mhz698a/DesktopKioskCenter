@@ -79,7 +79,11 @@ class StatisticsChartDataTests(unittest.TestCase):
         weekly, _general, _faculties = build_chart_data(weekly_rows, "week")
         self.assertEqual(dict(weekly), {"Sem 02/11": 20})
 
-        monthly, _general, _faculties = build_chart_data(self.rows, "month")
+        monthly_rows = [
+            {**row, "period": "2026-11"}
+            for row in self.rows
+        ]
+        monthly, _general, _faculties = build_chart_data(monthly_rows, "month")
         self.assertEqual(dict(monthly), {"11/2026": 20})
 
     def test_invalid_grouping_is_rejected(self):
