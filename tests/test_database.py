@@ -149,6 +149,156 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(totals["by_type"][0]["label"], "Alumno interno")
         self.assertEqual(totals["by_kiosk"][0]["label"], "Kiosco A")
 
+    def test_access_report_groups_by_day_week_and_month_and_filters_dates(self):
+        self.db.record_access_log(
+            kiosk_name="PC 1", nombres="Ana", apellidos="Pérez",
+            universidad_externa="Universidad X", tipo_usuario="Estudiante Externo",
+            accessed_at="2026-11-02 09:00:00",
+        )
+        self.db.record_access_log(
+            kiosk_name="PC 1", nombres="Luis", apellidos="López",
+            tipo_usuario="Público en general", accessed_at="2026-11-03 10:00:00",
+        )
+        self.db.record_access_log(
+            kiosk_name="PC 2", nombres="Eva", apellidos="García",
+            universidad_externa="Universidad X", tipo_usuario="Estudiante Externo",
+            accessed_at="2026-11-10 11:00:00",
+        )
+        daily = self.db.generate_access_report("2026-11-01", "2026-11-05", "day")
+        self.assertEqual(len(daily), 2)
+        self.assertEqual({row["period"] for row in daily}, {"2026-11-02", "2026-11-03"})
+        self.assertEqual(
+            {(row["origin"], row["source"], row["total"]) for row in daily},
+            {("Universidad", "Universidad X", 1),
+             ("Público en general", "Público en general", 1)},
+        )
+        weekly = self.db.generate_access_report("2026-11-01", "2026-11-05", "week")
+        self.assertEqual({row["period"] for row in weekly}, {"2026-11-02"})
+        self.assertEqual(sum(row["total"] for row in weekly), 2)
+        monthly = self.db.generate_access_report("2026-11-01", "2026-11-30", "month")
+        self.assertEqual({row["period"] for row in monthly}, {"2026-11"})
+        self.assertEqual(sum(row["total"] for row in monthly), 3)
+        with self.assertRaises(ValueError):
+            self.db.generate_access_report("2026-11-05", "2026-11-01", "day")
+        with self.assertRaises(ValueError):
+            self.db.generate_access_report("2026-11-01", "2026-11-05", "year")
+
+
+    def test_access_report_catalog_includes_registered_and_historical_entities(self):
+        self.db.add_internal_student({
+            "nombres": "Ana",
+            "apellidos": "Pérez",
+            "email": "ana.catalog@example.com",
+            "facultad": "Facultad de Derecho",
+            "expediente": "CAT001",
+        })
+        self.db.add_external_user({
+            "nombres": "Luis",
+            "apellidos": "López",
+            "email": "luis.catalog@example.com",
+            "tipo_usuario": "Estudiante Externo",
+            "universidad": "Universidad Y",
+        })
+        self.db.record_access_log(
+            kiosk_name="PC 1",
+            nombres="Eva",
+            apellidos="García",
+            facultad="Facultad de Informática",
+            tipo_usuario="Alumno interno",
+            accessed_at="2026-11-02 09:00:00",
+        )
+        self.db.record_access_log(
+            kiosk_name="PC 2",
+            nombres="Mario",
+            apellidos="Díaz",
+            universidad_externa="Universidad X",
+            tipo_usuario="Estudiante Externo",
+            accessed_at="2026-11-02 10:00:00",
+        )
+
+        catalog = self.db.get_access_report_catalog()
+        self.assertEqual(
+            catalog["universities"],
+            ["Universidad X", "Universidad Y"],
+        )
+        self.assertEqual(
+            catalog["faculties"],
+            ["Facultad de Derecho", "Facultad de Informática"],
+        )
+
+    def test_manual_student_unlock_records_simulated_registration_and_access(self):
+        student_id = self.db.add_internal_student({
+            "nombres": "Ana", "apellidos": "Pérez", "email": "ana@example.com",
+            "facultad": "Facultad de Informática", "expediente": "12345",
+        })
+        student = next(
+            item for item in self.db.list_internal_students()
+            if item["id"] == student_id
+        )
+        result = self.db.record_manual_student_unlock(
+            kiosk_name="PC Entrega 1", client_ip="192.168.100.20", student=student,
+        )
+        self.assertEqual(
+            set(result), {"registration_log_id", "unlock_log_id", "access_log_id"}
+        )
+        received = self.db.list_received_logins(limit=None)
+        self.assertEqual(
+            {item["action"] for item in received},
+            {"registro_alumno_simulado", "unlock_login_simulado"},
+        )
+        self.assertTrue(all("simulación" in item["result"] for item in received))
+        access = self.db.list_access_logs(limit=None)
+        self.assertEqual(len(access), 1)
+        self.assertEqual(access[0]["kiosk_name"], "PC Entrega 1")
+        self.assertEqual(access[0]["expediente"], "12345")
+        self.assertEqual(access[0]["tipo_usuario"], "Alumno interno")
+
+    def test_manual_public_general_assignment_records_public_session(self):
+        user_id = self.db.add_external_user({
+            "nombres": "Luis",
+            "apellidos": "Pérez",
+            "email": "luis.publico@example.com",
+            "tipo_usuario": "Público en general",
+            "universidad": "",
+        })
+        user = next(
+            item for item in self.db.list_external_users()
+            if item["id"] == user_id
+        )
+        result = self.db.record_manual_user_session(
+            kiosk_name="PC Público 1",
+            client_ip="192.168.100.30",
+            user=user,
+        )
+
+        self.assertIn("access_log_id", result)
+        access = self.db.list_access_logs(limit=None)
+        self.assertEqual(len(access), 1)
+        self.assertEqual(access[0]["tipo_usuario"], "Público en general")
+        self.assertEqual(access[0]["nombres"], "Luis")
+        self.assertEqual(access[0]["universidad_externa"], "")
+
+        received = self.db.list_received_logins(limit=None)
+        self.assertEqual(
+            {item["action"] for item in received},
+            {"registro_usuario_simulado", "unlock_login_simulado"},
+        )
+        self.assertTrue(
+            all("simulación administrativa" in item["result"] for item in received)
+        )
+
+    def test_deleting_configured_kiosk_heartbeats_only_removes_matching_ips(self):
+        self.db.record_kiosk_heartbeat(
+            client_ip="192.168.100.10", status_code=1, time_string="00:00:01"
+        )
+        self.db.record_kiosk_heartbeat(
+            client_ip="192.168.100.11", status_code=2, time_string="00:00:02"
+        )
+        removed = self.db.delete_kiosk_heartbeats(["192.168.100.10"])
+        self.assertEqual(removed, 1)
+        self.assertIsNone(self.db.get_kiosk_heartbeat("192.168.100.10"))
+        self.assertIsNotNone(self.db.get_kiosk_heartbeat("192.168.100.11"))
+
     def test_external_user_requires_valid_email(self):
         with self.assertRaises(ValueError):
             self.db.add_external_user({

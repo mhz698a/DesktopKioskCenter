@@ -18,6 +18,8 @@ from tabs.received_logins.backend import ReceivedLoginsBackend
 from tabs.received_logins.build import ReceivedLoginsTab
 from tabs.access_logs.backend import AccessLogsBackend
 from tabs.access_logs.build import AccessLogsTab
+from tabs.statistics.backend import StatisticsBackend
+from tabs.statistics.build import StatisticsTab
 
 
 class MainWindow(QMainWindow):
@@ -76,6 +78,7 @@ class MainWindow(QMainWindow):
         self.external_users_tab = ExternalUsersTab(self.tabs)
         self.received_logins_tab = ReceivedLoginsTab(self.tabs)
         self.access_logs_tab = AccessLogsTab(self.tabs)
+        self.statistics_tab = StatisticsTab(self.tabs)
 
         self.tabs.setStyleSheet(apply_css_sheet("css/qtabwidget.css"))
         self.tabs.addTab(self.equipment_tab, "Equipos")
@@ -87,21 +90,27 @@ class MainWindow(QMainWindow):
         )
         self.tabs.addTab(self.received_logins_tab, "Logs de peticiones")
         self.tabs.addTab(self.access_logs_tab, "Logs de accesos")
+        self.tabs.addTab(self.statistics_tab, "Estadísticas")
 
         self.equipment_backend = EquipmentBackend(
             self.equipment_tab, self.threadpool, self, database=self.database
         )
         self.internal_students_backend = InternalStudentsBackend(
-            self.internal_students_tab, self.database, self
+            self.internal_students_tab, self.database, self,
+            threadpool=self.threadpool,
         )
         self.external_users_backend = ExternalUsersBackend(
-            self.external_users_tab, self.database, self
+            self.external_users_tab, self.database, self,
+            threadpool=self.threadpool,
         )
         self.received_logins_backend = ReceivedLoginsBackend(
             self.received_logins_tab, self.database, self
         )
         self.access_logs_backend = AccessLogsBackend(
             self.access_logs_tab, self.database, self
+        )
+        self.statistics_backend = StatisticsBackend(
+            self.statistics_tab, self.database, self
         )
 
         root_layout.addWidget(header)
@@ -134,8 +143,10 @@ class MainWindow(QMainWindow):
             index = self.tabs.currentIndex()
             if index == 1:
                 self.internal_students_backend.refresh(preserve_editor=True)
+                self.internal_students_backend.refresh_equipment_choices()
             elif index == 2:
                 self.external_users_backend.refresh(preserve_editor=True)
+                self.external_users_backend.refresh_equipment_choices()
             elif index == 3:
                 self.received_logins_backend.refresh()
             elif index == 4:
@@ -196,7 +207,11 @@ class MainWindow(QMainWindow):
         self.server_ip_timer.stop()
         self.data_refresh_timer.stop()
         self.equipment_backend.stop()
+        self.internal_students_backend.stop()
+        self.external_users_backend.stop()
         self.threadpool.clear()
         self.threadpool.waitForDone()
         self.equipment_backend.release_workers()
+        self.internal_students_backend.release_workers()
+        self.external_users_backend.release_workers()
         event.accept()

@@ -71,6 +71,33 @@ Es la tabla de referencia de los estados de los equipos. `status_code` es la cla
 
 Cada IP de origen tiene un registro con clave primaria `client_ip`, la referencia `status_code` al catálogo, `time_string` y la marca de tiempo `last_seen_at`. Cada petición heartbeat hace un upsert de la fila correspondiente. El servidor utiliza `request.remote_addr`; no espera la IP dentro del JSON. Cuando pasan 4 segundos sin un heartbeat, un monitor del servicio cambia el código a 0 sin depender de nuevas peticiones.
 
+### Reportes de estadísticas
+
+La pestaña **Estadísticas** consulta `access_logs` por un rango inclusivo de fechas y permite agrupar por día, semana (lunes a domingo) o mes. Cada periodo se desglosa por procedencia: universidad externa, público en general o UAQ; para universidades se conserva el nombre de la institución y para UAQ se presenta la facultad o el tipo de usuario. El panel derecho representa la evolución de accesos por periodo y el desglose de procedencias. El reporte tabular se exporta a CSV y el panel gráfico se exporta como PNG compuesto, junto con cada una de las tres gráficas en PNG independiente.
+
+### Gráficas de procedencia y exportación PDF
+
+El panel de gráficas de **Estadísticas** se divide en dos pestañas:
+
+- **Procedencia General**: agrega todos los accesos de las facultades y del personal interno en una sola categoría llamada `Universidad Autónoma de Querétaro`. Las universidades externas se mantienen separadas por institución y el público general aparece como otra categoría.
+- **Procedencia Facultades**: muestra todas las facultades con accesos de alumnos internos UAQ. Las instituciones y facultades con actividad se muestran completas, sin un límite de categorías; las que tienen cero accesos se enumeran en bloques separados.
+- El catálogo de ceros combina entidades de `internal_students`, `external_users` y el historial en `access_logs`, por lo que no depende de que hayan iniciado sesión durante el rango elegido.
+- Las gráficas utilizan tema oscuro en la interfaz y fondo blanco en PDF. En la interfaz se desplazan según el número de categorías; no se descartan universidades, facultades ni periodos. El PDF usa hojas A4 horizontales con tres gráficas y el catálogo de ceros distribuidos en una cuadrícula por página, y divide los datos en bloques cuando es necesario. Todas las imágenes y tablas se limitan al área imprimible dentro de los márgenes.
+
+El botón **Exportar PDF** permite marcar uno o varios periodos (día, semana y mes), confirmar la ruta y el nombre del archivo y decidir si se abre el documento al terminar. También permite elegir el tamaño de papel **A4** o **Carta**, en orientación horizontal. Cancelar el selector de destino conserva abierto el diálogo de opciones; cancelar el diálogo principal sí cancela la exportación. El PDF pagina las gráficas por bloques para mantener su escala dentro del área imprimible, incluye listas de instituciones y facultades sin accesos únicamente cuando existen, y dibuja las tablas a todo el ancho disponible respetando los márgenes. El detalle se agrupa por universidad y conserva el orden ascendente de fechas dentro de cada grupo.
+
+La generación de PDF utiliza `QPdfWriter` y `QPainter` de Qt; no agrega dependencias de terceros.
+
+### Desbloqueo administrativo atribuido a un alumno
+
+Desde el panel de edición de **Alumnos Internos Registrados** y de **Usuarios Externos Registrados** de tipo **Público en general**, el administrador puede seleccionar un equipo configurado y asignarlo a la persona seleccionada. La petición inicia una sesión real en DesktopKiosk y muestra el nombre de esa persona en el panel flotante de sesión. Solo después de que el kiosco acepte la petición se guarda un acceso en `access_logs` y dos eventos de auditoría en `received_logins`: registro atribuido e inicio de sesión atribuido. Los eventos identifican la asignación como simulación administrativa para distinguirla de un registro/autenticación ejecutado directamente por la persona. El registro original no se vuelve a insertar.
+
+Al borrar todas las PCs configuradas, se vacía `kiosks.json` y se eliminan de `kiosk_heartbeats` únicamente las IP asociadas a esos equipos.
+
+### Datos de demostración de estadísticas
+
+El script local `devtools/seed_fake_statistics.py` genera accesos y logs de peticiones de demostración para las universidades, el público en general y alumnos UAQ. Se ejecuta desde la raíz del repositorio con `python devtools/seed_fake_statistics.py`. El script reemplaza únicamente sus propios registros, identificados por el prefijo `DEMO_STATS:`, y conserva los registros reales. El directorio `devtools` está excluido de PyInstaller y no forma parte del instalador de producción.
+
 ### `schema_migrations`
 
 Registra migraciones de datos ya ejecutadas. Esto hace explícito y revisable el proceso de actualización de esquema.

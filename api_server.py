@@ -12,7 +12,7 @@ from database import Database
 
 logger = logging.getLogger(__name__)
 
-LOGIN_UNKNOWN_MESSAGE = "El correo electrónico o expediente no está registrado. Realice su registro primero."
+LOGIN_UNKNOWN_MESSAGE = "El correo electrónico o expediente no está registrado. Realice su registro primero en el mostrador."
 DUPLICATE_MESSAGE = "El correo electrónico ya se encuentra registrado. Inicie sesión."
 DUPLICATE_STUDENT_MESSAGE = "El correo electrónico o expediente ya se encuentra registrado. Inicie sesión."
 STUDENT_REGISTERED_MESSAGE = "Registro de alumno completado con éxito."

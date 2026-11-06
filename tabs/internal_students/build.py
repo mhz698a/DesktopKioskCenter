@@ -1,5 +1,8 @@
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtWidgets import QAbstractItemView, QHeaderView, QSplitter, QTableWidgetItem, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import (
+    QAbstractItemView, QHeaderView, QSplitter, QTableWidgetItem,
+    QVBoxLayout, QWidget,
+)
 
 from css.cqtoolbar import cQToolbar
 from css.cQTablewidget import cQTableW

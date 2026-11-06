@@ -21,6 +21,8 @@ class EquipmentTab(QWidget):
     add_multiple_requested = pyqtSignal()
     shutdown_all_requested = pyqtSignal()
     restart_all_requested = pyqtSignal()
+    send_ip_all_requested = pyqtSignal()
+    delete_all_requested = pyqtSignal()
     admin_credentials_requested = pyqtSignal()
     selection_changed = pyqtSignal(int)
     lock_requested = pyqtSignal()
@@ -46,6 +48,16 @@ class EquipmentTab(QWidget):
         add_action.triggered.connect(lambda _checked=False: self.add_single_requested.emit())
         add_multiple_action = toolbar.addAction("Agregar varios equipos")
         add_multiple_action.triggered.connect(lambda _checked=False: self.add_multiple_requested.emit())
+
+        toolbar.addSeparator()
+        send_ip_all_action = toolbar.addAction("Enviar IP a todas las PCs")
+        send_ip_all_action.triggered.connect(
+            lambda _checked=False: self.send_ip_all_requested.emit()
+        )
+        delete_all_action = toolbar.addAction("Borrar todas las PCs")
+        delete_all_action.triggered.connect(
+            lambda _checked=False: self.delete_all_requested.emit()
+        )
 
         toolbar.addSeparator()
         shutdown_all_action = toolbar.addAction("Apagar todos los Equipos")
