@@ -7,7 +7,6 @@ from pathlib import Path
 
 from PyQt6.QtCore import QPointF, QRectF, QSize, Qt
 from PyQt6.QtGui import (
-    QBrush,
     QColor,
     QFont,
     QFontMetrics,
@@ -21,7 +20,6 @@ from PyQt6.QtGui import (
 
 from tabs.statistics.charts import BarChartWidget
 from tabs.statistics.report_data import (
-    UAQ_FULL_NAME,
     build_chart_data,
     build_zero_access_data,
     university_group_label,
@@ -111,9 +109,9 @@ def _group_detail_rows(rows):
 
 def _draw_wrapped_cell(painter, rect, text, *, font, background=None):
     flags = (
-        Qt.AlignmentFlag.AlignLeft
-        | Qt.AlignmentFlag.AlignVCenter
-        | Qt.TextFlag.TextWordWrap
+        int(Qt.AlignmentFlag.AlignLeft)
+        | int(Qt.AlignmentFlag.AlignVCenter)
+        | int(Qt.TextFlag.TextWordWrap)
     )
     painter.setFont(font)
     painter.setPen(QPen(QColor("#cbd2da"), 1))
@@ -304,9 +302,9 @@ def export_statistics_pdf(
                 painter.setPen(QColor("#20242b"))
                 painter.drawText(
                     QRectF(left + 12, y, label_width - 12, row_height),
-                    Qt.AlignmentFlag.AlignLeft
-                    | Qt.AlignmentFlag.AlignVCenter
-                    | Qt.TextFlag.TextWordWrap,
+                    int(Qt.AlignmentFlag.AlignLeft)
+                    | int(Qt.AlignmentFlag.AlignVCenter)
+                    | int(Qt.TextFlag.TextWordWrap),
                     label,
                 )
                 y += row_height
