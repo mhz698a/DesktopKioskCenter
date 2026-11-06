@@ -1,8 +1,14 @@
 """Consultas y exportación del generador de estadísticas."""
 import csv
+
+from PyQt6.QtCore import QUrl
+from PyQt6.QtGui import QDesktopServices
 from PyQt6.QtCore import QObject
+
 from css.cQDialogs import cQMsgBox
 from database import Database
+from tabs.statistics.pdf_export import export_statistics_pdf
+from tabs.statistics.report_data import build_chart_data
 
 
 class StatisticsBackend(QObject):
@@ -14,65 +20,135 @@ class StatisticsBackend(QObject):
         self.view.generate_requested.connect(self.generate_report)
         self.view.export_requested.connect(self.export_report)
         self.view.export_charts_requested.connect(self.export_charts)
+        self.view.export_pdf_requested.connect(self.export_pdf)
 
     def generate_report(self):
         filters = self.view.get_report_filters()
         grouping = filters["grouping"]
         try:
             rows = self.database.generate_access_report(
-                filters["start_date"], filters["end_date"], filters["grouping"]
+                filters["start_date"],
+                filters["end_date"],
+                grouping,
             )
         except (ValueError, OSError) as exc:
             cQMsgBox.warning(self.view, "No se pudo generar el reporte", str(exc))
             return
         except Exception as exc:
             cQMsgBox.critical(
-                self.view, "Error de base de datos",
-                f"No se pudo consultar el historial de accesos.\n\n{exc}",
+                self.view,
+                "Error de base de datos",
+                f"No se pudo consultar el historial de accesos.\\n\\n{exc}",
             )
             return
 
+        period_chart_data, general_data, faculty_data = build_chart_data(
+            rows, grouping
+        )
         formatted_rows = []
         for record in rows:
             item = dict(record)
-            if filters["grouping"] == "week":
+            if grouping == "week":
                 item["period"] = f"Semana del {item['period']}"
             formatted_rows.append(item)
-        period_totals = {}
-        source_totals = {}
-        for item in formatted_rows:
-            period = str(item.get("period", ""))
-            value = int(item.get("total", 0))
-            period_totals[period] = period_totals.get(period, 0) + value
-            source = str(item.get("source") or item.get("origin") or "Sin clasificar")
-            source_totals[source] = source_totals.get(source, 0) + value
 
-        period_chart_data = []
-        for period, value in sorted(period_totals.items()):
-            raw_period = (
-                period.removeprefix("Semana del ")
-                if grouping == "week" else period
-            )
-            if grouping == "day":
-                label = raw_period[8:10] + "/" + raw_period[5:7]
-            elif grouping == "week":
-                label = "Sem " + raw_period[8:10] + "/" + raw_period[5:7]
-            else:
-                label = raw_period[5:7] + "/" + raw_period[:4]
-            period_chart_data.append((label, value))
-
-        source_chart_data = sorted(
-            source_totals.items(), key=lambda item: item[1], reverse=True
-        )
         self._last_rows = formatted_rows
         total = sum(int(item.get("total", 0)) for item in formatted_rows)
         self.view.set_report_rows(formatted_rows, total)
-        self.view.set_chart_data(period_chart_data, source_chart_data)
+        self.view.set_chart_data(
+            period_chart_data,
+            general_data,
+            faculty_data,
+        )
+
+    def export_pdf(self):
+        options = self.view.choose_pdf_export_options()
+        # Rechazar o cancelar el diálogo de opciones/destino cancela toda la acción.
+        if options is None:
+            return
+
+        filters = self.view.get_report_filters()
+        reports = {}
+        try:
+            for grouping in options["groupings"]:
+                reports[grouping] = self.database.generate_access_report(
+                    filters["start_date"],
+                    filters["end_date"],
+                    grouping,
+                )
+        except (ValueError, OSError) as exc:
+            cQMsgBox.warning(
+                self.view,
+                "No se pudo consultar el reporte",
+                str(exc),
+            )
+            return
+        except Exception as exc:
+            cQMsgBox.critical(
+                self.view,
+                "Error de base de datos",
+                f"No se pudieron consultar los periodos seleccionados.\\n\\n{exc}",
+            )
+            return
+
+        total = sum(
+            int(row.get("total", 0))
+            for period_rows in reports.values()
+            for row in period_rows
+        )
+        if total <= 0:
+            cQMsgBox.information(
+                self.view,
+                "Sin accesos",
+                "No existen accesos en el rango de fechas y periodos seleccionados.",
+            )
+            return
+
+        try:
+            output_path = export_statistics_pdf(
+                options["filename"],
+                start_date=filters["start_date"],
+                end_date=filters["end_date"],
+                reports=reports,
+            )
+        except (OSError, RuntimeError, ValueError) as exc:
+            cQMsgBox.critical(
+                self.view,
+                "Error al exportar PDF",
+                f"No se pudo generar el documento.\\n\\n{exc}",
+            )
+            return
+        except Exception as exc:
+            cQMsgBox.critical(
+                self.view,
+                "Error al exportar PDF",
+                f"Ocurrió un error inesperado al preparar el documento.\\n\\n{exc}",
+            )
+            return
+
+        cQMsgBox.information(
+            self.view,
+            "Reporte PDF generado",
+            f"El reporte se guardó en:\\n{output_path}",
+        )
+
+        if options["open_after_export"]:
+            opened = QDesktopServices.openUrl(
+                QUrl.fromLocalFile(str(output_path))
+            )
+            if not opened:
+                cQMsgBox.warning(
+                    self.view,
+                    "No se pudo abrir el PDF",
+                    "El reporte se generó correctamente, pero Windows no pudo "
+                    "abrirlo con la aplicación predeterminada.",
+                )
 
     def export_charts(self):
         if not self._last_rows:
             cQMsgBox.information(
-                self.view, "Sin datos",
+                self.view,
+                "Sin datos",
                 "Genera un reporte antes de exportar las gráficas.",
             )
             return
@@ -87,29 +163,33 @@ class StatisticsBackend(QObject):
             saved_files = self.view.save_chart_images(path)
         except (OSError, RuntimeError) as exc:
             cQMsgBox.critical(
-                self.view, "Error al exportar gráficas",
+                self.view,
+                "Error al exportar gráficas",
                 f"No se pudieron generar las imágenes PNG.\\n\\n{exc}",
             )
             return
 
-        if len(saved_files) != 3:
+        if len(saved_files) != 4:
             cQMsgBox.critical(
-                self.view, "Exportación incompleta",
+                self.view,
+                "Exportación incompleta",
                 "No se pudieron guardar todas las imágenes del reporte. "
-                f"Se guardaron {len(saved_files)} de 3.",
+                f"Se guardaron {len(saved_files)} de 4.",
             )
             return
 
         cQMsgBox.information(
             self.view,
             "Gráficas exportadas",
-            "Se guardaron estas imágenes PNG:\\n\\n" + "\\n".join(saved_files),
+            "Se guardaron estas imágenes PNG:\\n\\n"
+            + "\\n".join(saved_files),
         )
 
     def export_report(self):
         if not self._last_rows:
             cQMsgBox.information(
-                self.view, "Sin datos",
+                self.view,
+                "Sin datos",
                 "Genera un reporte con resultados antes de exportar.",
             )
             return
@@ -121,18 +201,25 @@ class StatisticsBackend(QObject):
         try:
             with open(path, "w", newline="", encoding="utf-8-sig") as output:
                 writer = csv.writer(output)
-                writer.writerow(["Periodo", "Procedencia", "Universidad / origen", "Accesos"])
+                writer.writerow([
+                    "Periodo", "Procedencia", "Universidad / facultad", "Accesos"
+                ])
                 for row in self._last_rows:
                     writer.writerow([
-                        row.get("period", ""), row.get("origin", ""),
-                        row.get("source", ""), row.get("total", 0),
+                        row.get("period", ""),
+                        row.get("origin", ""),
+                        row.get("source", ""),
+                        row.get("total", 0),
                     ])
         except OSError as exc:
             cQMsgBox.critical(
-                self.view, "Error al exportar",
-                f"No se pudo guardar el CSV.\n\n{exc}",
+                self.view,
+                "Error al exportar",
+                f"No se pudo guardar el CSV.\\n\\n{exc}",
             )
             return
         cQMsgBox.information(
-            self.view, "Reporte exportado", f"El archivo se guardó en:\n{path}"
+            self.view,
+            "Reporte exportado",
+            f"El archivo se guardó en:\\n{path}",
         )
