@@ -38,7 +38,7 @@ class StatisticsBackend(QObject):
             cQMsgBox.critical(
                 self.view,
                 "Error de base de datos",
-                f"No se pudo consultar el historial de accesos.\\n\\n{exc}",
+                f"No se pudo consultar el historial de accesos.\n\n{exc}",
             )
             return
 
@@ -87,7 +87,7 @@ class StatisticsBackend(QObject):
             cQMsgBox.critical(
                 self.view,
                 "Error de base de datos",
-                f"No se pudieron consultar los periodos seleccionados.\\n\\n{exc}",
+                f"No se pudieron consultar los periodos seleccionados.\n\n{exc}",
             )
             return
 
@@ -115,21 +115,21 @@ class StatisticsBackend(QObject):
             cQMsgBox.critical(
                 self.view,
                 "Error al exportar PDF",
-                f"No se pudo generar el documento.\\n\\n{exc}",
+                f"No se pudo generar el documento.\n\n{exc}",
             )
             return
         except Exception as exc:
             cQMsgBox.critical(
                 self.view,
                 "Error al exportar PDF",
-                f"Ocurrió un error inesperado al preparar el documento.\\n\\n{exc}",
+                f"Ocurrió un error inesperado al preparar el documento.\n\n{exc}",
             )
             return
 
         cQMsgBox.information(
             self.view,
             "Reporte PDF generado",
-            f"El reporte se guardó en:\\n{output_path}",
+            f"El reporte se guardó en:\n{output_path}",
         )
 
         if options["open_after_export"]:
@@ -165,7 +165,7 @@ class StatisticsBackend(QObject):
             cQMsgBox.critical(
                 self.view,
                 "Error al exportar gráficas",
-                f"No se pudieron generar las imágenes PNG.\\n\\n{exc}",
+                f"No se pudieron generar las imágenes PNG.\n\n{exc}",
             )
             return
 
@@ -181,8 +181,8 @@ class StatisticsBackend(QObject):
         cQMsgBox.information(
             self.view,
             "Gráficas exportadas",
-            "Se guardaron estas imágenes PNG:\\n\\n"
-            + "\\n".join(saved_files),
+            "Se guardaron estas imágenes PNG:\n\n"
+            + "\n".join(saved_files),
         )
 
     def export_report(self):
@@ -215,11 +215,11 @@ class StatisticsBackend(QObject):
             cQMsgBox.critical(
                 self.view,
                 "Error al exportar",
-                f"No se pudo guardar el CSV.\\n\\n{exc}",
+                f"No se pudo guardar el CSV.\n\n{exc}",
             )
             return
         cQMsgBox.information(
             self.view,
             "Reporte exportado",
-            f"El archivo se guardó en:\\n{path}",
+            f"El archivo se guardó en:\n{path}",
         )
