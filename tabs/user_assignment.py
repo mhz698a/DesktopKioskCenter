@@ -20,6 +20,7 @@ class UserAssignmentController(QObject):
         self._kiosks_by_host = {}
         self._equipment_snapshot = None
         self._workers = set()
+        self._closing = False
 
         self.editor.unlock_for_user_requested.connect(self.assign_selected_user)
         self.refresh_equipment_choices()
@@ -53,6 +54,8 @@ class UserAssignmentController(QObject):
         }
 
     def assign_selected_user(self):
+        if self._closing:
+            return
         user = self.user_provider()
         if not user:
             cQMsgBox.warning(
@@ -126,6 +129,8 @@ class UserAssignmentController(QObject):
         self.threadpool.start(worker)
 
     def _on_success(self, kiosk, user, title, message):
+        if self._closing:
+            return
         try:
             self.database.record_manual_user_session(
                 kiosk_name=kiosk.name,
@@ -147,13 +152,17 @@ class UserAssignmentController(QObject):
         )
 
     def _on_error(self, title, message):
-        cQMsgBox.critical(self.editor, title, message)
+        if not self._closing:
+            cQMsgBox.critical(self.editor, title, message)
 
     def _forget_worker(self, worker):
         self._workers.discard(worker)
 
     def stop(self):
         """Evita que las respuestas tardías intenten actualizar widgets cerrados."""
+        if self._closing:
+            return
+        self._closing = True
         self.editor.unlock_for_user_requested.disconnect(self.assign_selected_user)
 
     def release_workers(self):
