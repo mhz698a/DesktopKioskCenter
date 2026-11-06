@@ -76,6 +76,13 @@ class InternalStudentsBackend(QObject):
         if not self._closing:
             self.assignment_controller.refresh_equipment_choices()
 
+    def stop(self):
+        self._closing = True
+        self.assignment_controller.stop()
+
+    def release_workers(self):
+        self.assignment_controller.release_workers()
+
     def add_student(self):
         dialog = UserRecordDialog("Agregar Alumno", FIELDS, self.view)
         if dialog.exec() != QDialog.DialogCode.Accepted:
