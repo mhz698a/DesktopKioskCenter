@@ -31,9 +31,10 @@ GROUPING_TITLES = {
     "week": "Accesos por semana",
     "month": "Accesos por mes",
 }
-CHART_CHUNK_SIZE = 12
-ZERO_LIST_CHUNK_SIZE = 12
-TABLE_HEADERS = ("Periodo", "Universidad", "Detalle / facultad", "Accesos")
+CHART_CHUNK_SIZE = 10
+ZERO_LIST_CHUNK_SIZE = 10
+TABLE_HEADERS = ("Periodo", "Detalle / facultad", "Accesos")
+COLUMN_RATIOS = (0.25, 0.63, 0.12)
 
 
 def _chunks(items, chunk_size):
@@ -51,10 +52,9 @@ def _chart_image(title, values, *, width, height, horizontal=True):
         horizontal=horizontal,
         theme="light",
         compact=True,
+        font_scale=1.85,
     )
     chart.set_data(values)
-    # La exportación define el tamaño del recuadro. Se evita que los mínimos
-    # pensados para el scroll de la interfaz fuercen un widget mayor que la hoja.
     chart.setMinimumWidth(1)
     chart.setMinimumHeight(1)
     chart.resize(max(1, int(width)), max(1, int(height)))
@@ -126,7 +126,7 @@ def _draw_cell(painter, rect, text, *, font, background=None, align=None):
         painter.fillRect(rect, background)
     painter.drawRect(rect)
     painter.setPen(QColor("#20242b"))
-    painter.drawText(rect.adjusted(6, 3, -6, -3), flags, str(text))
+    painter.drawText(rect.adjusted(4, 2, -4, -2), flags, str(text))
 
 
 def export_statistics_pdf(
@@ -136,14 +136,9 @@ def export_statistics_pdf(
     end_date,
     reports,
     catalog=None,
-    paper_size="a4",
+    paper_size="letter"
 ):
-    """Genera un PDF horizontal en A4 o Carta, con tres gráficas por hoja.
-
-    Las cuatro áreas de cada página de gráficas son: periodo, procedencia general,
-    facultades y catálogo de entidades sin accesos. Los datos se dividen en bloques
-    para que ninguna categoría desaparezca cuando hay muchas instituciones.
-    """
+    """Genera un PDF vertical en tamaño Carta, con diseño ajustado a los márgenes."""
     output_path = Path(filename).expanduser()
     if output_path.suffix.lower() != ".pdf":
         output_path = output_path.with_suffix(".pdf")
@@ -158,14 +153,14 @@ def export_statistics_pdf(
         raise ValueError("No hay periodos seleccionados para exportar.")
 
     catalog = catalog or {}
-    normalized_paper_size = str(paper_size or "a4").strip().lower()
+    normalized_paper_size = str(paper_size or "letter").strip().lower()
     paper_sizes = {
-        "a4": (QPageSize.PageSizeId.A4, "A4"),
         "letter": (QPageSize.PageSizeId.Letter, "Carta"),
         "carta": (QPageSize.PageSizeId.Letter, "Carta"),
+        "a4": (QPageSize.PageSizeId.A4, "A4"),
     }
     if normalized_paper_size not in paper_sizes:
-        raise ValueError("El tamaño de papel debe ser A4 o Carta.")
+        normalized_paper_size = "letter"
     page_size_id, page_size_label = paper_sizes[normalized_paper_size]
 
     if output_path.exists():
@@ -180,8 +175,8 @@ def export_statistics_pdf(
     writer.setPageLayout(
         QPageLayout(
             QPageSize(page_size_id),
-            QPageLayout.Orientation.Landscape,
-            QMarginsF(16, 16, 16, 16),
+            QPageLayout.Orientation.Portrait,
+            QMarginsF(5, 5, 5, 5),
             QPageLayout.Unit.Millimeter,
         )
     )
@@ -190,15 +185,13 @@ def export_statistics_pdf(
     page_rect = QRectF(writer.pageLayout().paintRectPixels(dpi))
     left = page_rect.left()
     top = page_rect.top()
-    width = page_rect.width()
-    right = page_rect.right()
-    bottom = page_rect.bottom()
+    width = page_rect.width() - (page_rect.width() * 0.05)
+    bottom = page_rect.bottom() - (page_rect.bottom() * 0.05)
 
-    title_font = QFont("Arial", 13, QFont.Weight.Bold)
-    subtitle_font = QFont("Arial", 8)
-    section_font = QFont("Arial", 9, QFont.Weight.Bold)
-    body_font = QFont("Arial", 8)
-    small_font = QFont("Arial", 7)
+    title_font = QFont("Arial", 16, QFont.Weight.Bold)
+    subtitle_font = QFont("Arial", 12)
+    section_font = QFont("Arial", 11, QFont.Weight.Bold)
+    body_font = QFont("Arial", 10) # cells
 
     painter = QPainter()
     if not painter.begin(writer):
@@ -219,20 +212,20 @@ def export_statistics_pdf(
         painter.setPen(QColor("#20242b"))
         painter.setFont(title_font)
         painter.drawText(
-            QRectF(left, top, width, 27),
+            QRectF(left, top, width, 36),
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
             title,
         )
-        y = top + 30
+        y = top + 40
         if subtitle:
             painter.setFont(subtitle_font)
             painter.setPen(QColor("#596575"))
             painter.drawText(
-                QRectF(left, y, width, 18),
+                QRectF(left, y, width, 26),
                 Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
                 subtitle,
             )
-            y += 21
+            y += 30
         painter.setPen(QColor("#20242b"))
         painter.restore()
         return y
@@ -255,11 +248,11 @@ def export_statistics_pdf(
         painter.setClipRect(rect)
         painter.fillRect(rect, QColor("#ffffff"))
         painter.setPen(QPen(QColor("#d7dde5"), 1))
-        painter.drawRoundedRect(rect.adjusted(1, 1, -1, -1), 7, 7)
+        painter.drawRoundedRect(rect.adjusted(1, 1, -1, -1), 6, 6)
         painter.setFont(section_font)
         painter.setPen(QColor("#20242b"))
         painter.drawText(
-            rect.adjusted(12, 10, -12, -10),
+            rect.adjusted(8, 6, -8, -6),
             int(Qt.AlignmentFlag.AlignHCenter)
             | int(Qt.AlignmentFlag.AlignVCenter)
             | int(Qt.TextFlag.TextWordWrap),
@@ -273,38 +266,38 @@ def export_statistics_pdf(
         painter.setClipRect(rect)
         painter.fillRect(rect, QColor("#ffffff"))
         painter.setPen(QPen(QColor("#d7dde5"), 1))
-        painter.drawRoundedRect(rect.adjusted(1, 1, -1, -1), 7, 7)
+        painter.drawRoundedRect(rect.adjusted(1, 1, -1, -1), 6, 6)
         painter.setFont(section_font)
         painter.setPen(QColor("#20242b"))
         painter.drawText(
-            QRectF(rect.left() + 12, rect.top() + 8, rect.width() - 24, 22),
+            QRectF(rect.left() + 8, rect.top() + 6, rect.width() - 16, 20),
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-            "Entidades registradas sin accesos",
+            "Entidades sin accesos",
         )
 
         if not items:
             painter.setFont(body_font)
             painter.setPen(QColor("#687385"))
             painter.drawText(
-                rect.adjusted(12, 36, -12, -8),
+                rect.adjusted(8, 28, -8, -4),
                 int(Qt.AlignmentFlag.AlignHCenter)
                 | int(Qt.AlignmentFlag.AlignVCenter),
-                "No hay universidades ni facultades con cero accesos.",
+                "No hay registros con cero accesos.",
             )
             painter.restore()
             return
 
-        y = rect.top() + 35
-        available_height = max(1, rect.bottom() - y - 6)
+        y_pos = rect.top() + 28
+        available_height = max(1, rect.bottom() - y_pos - 4)
         row_height = available_height / max(1, len(items))
         for index, (kind, name) in enumerate(items):
             row_rect = QRectF(
-                rect.left() + 12,
-                y + index * row_height,
-                rect.width() - 24,
+                rect.left() + 8,
+                y_pos + index * row_height,
+                rect.width() - 16,
                 row_height,
             )
-            painter.setFont(small_font)
+            painter.setFont(body_font)
             painter.setPen(QColor("#20242b"))
             painter.drawText(
                 row_rect,
@@ -330,12 +323,10 @@ def export_statistics_pdf(
                 _chunks(general_data, CHART_CHUNK_SIZE),
             ),
             (
-                "Procedencia por facultad",
+                "Facultades",
                 _chunks(faculty_data, CHART_CHUNK_SIZE),
             ),
         )
-        # Se intercalan los bloques para aprovechar los tres espacios de gráfica
-        # en cada página, incluso cuando una categoría requiere más páginas.
         chart_items = []
         max_chunks = max((len(chunks) for _title, chunks in chart_groups), default=0)
         for chunk_index in range(max_chunks):
@@ -354,7 +345,7 @@ def export_statistics_pdf(
             ("Universidad", name)
             for name in zero_access.get("universities", [])
         ] + [
-            ("Facultad UAQ", name)
+            ("Facultad", name)
             for name in zero_access.get("faculties", [])
         ]
         zero_chunks = _chunks(zero_items, ZERO_LIST_CHUNK_SIZE)
@@ -363,14 +354,13 @@ def export_statistics_pdf(
         page_total = max(chart_page_count, len(zero_chunks))
         for page_index in range(page_total):
             page_subtitle = (
-                f"{start_date} a {end_date} · hoja de gráficas "
-                f"{page_index + 1} de {page_total}"
+                f"{start_date} a {end_date} · pág. {page_index + 1} de {page_total}"
             )
             grid_top = begin_page(
                 f"Estadísticas · {GROUPING_TITLES[grouping]}",
                 page_subtitle,
-            ) + 4
-            gap = 12
+            ) + 2
+            gap = 8
             slot_width = (width - gap) / 2
             slot_height = (bottom - grid_top - gap) / 2
 
@@ -399,14 +389,14 @@ def export_statistics_pdf(
                         slots[slot_index],
                         chart_title,
                         chart_values,
-                        placeholder="No hay datos para esta gráfica.",
+                        placeholder="Sin datos.",
                     )
                 else:
                     draw_chart_slot(
                         slots[slot_index],
-                        "Espacio gráfico disponible",
+                        "Espacio disponible",
                         [],
-                        placeholder="No hay más bloques de gráficas para mostrar.",
+                        placeholder="Sin más gráficas.",
                     )
 
             draw_zero_slot(slots[3], zero_values)
@@ -418,20 +408,20 @@ def export_statistics_pdf(
 
         y = begin_page(
             "Detalle de accesos",
-            f"{GROUPING_TITLES[grouping]} · agrupado por universidad · "
-            f"fechas ascendentes · {start_date} a {end_date}",
+            f"{GROUPING_TITLES[grouping]} · {start_date} a {end_date}",
         )
-        col_width = width / 4
+        
+        col_widths = [width * ratio for ratio in COLUMN_RATIOS]
         header_height = 26
-        group_height = 27
+        group_height = 26
         header_background = QColor("#e9edf2")
         group_background = QColor("#e2eaf5")
 
         def draw_group_title(name, continuation=False):
             nonlocal y
-            label = f"Universidad: {name}"
+            label = f"{name}"
             if continuation:
-                label += " (continuación)"
+                label += " (cont.)"
             rect = QRectF(left, y, width, group_height)
             painter.save()
             painter.setClipRect(page_rect)
@@ -441,7 +431,7 @@ def export_statistics_pdf(
             painter.setFont(section_font)
             painter.setPen(QColor("#25364a"))
             painter.drawText(
-                rect.adjusted(7, 2, -7, -2),
+                rect.adjusted(6, 2, -6, -2),
                 Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
                 label,
             )
@@ -450,27 +440,25 @@ def export_statistics_pdf(
 
         def draw_header_row():
             nonlocal y
+            current_x = left
             for column, header in enumerate(TABLE_HEADERS):
-                rect = QRectF(
-                    left + column * col_width,
-                    y,
-                    col_width,
-                    header_height,
-                )
+                col_w = col_widths[column]
+                rect = QRectF(current_x, y, col_w, header_height)
                 _draw_cell(
                     painter,
                     rect,
                     header,
-                    font=QFont("Arial", 8, QFont.Weight.Bold),
+                    font=QFont("Arial", 12, QFont.Weight.Bold),
                     background=header_background,
                 )
+                current_x += col_w
             y += header_height
 
         for university, group_rows in groups:
-            if y + group_height + header_height + 35 > bottom:
+            if y + group_height + header_height + 25 > bottom:
                 y = begin_page(
                     "Detalle de accesos · continuación",
-                    f"{GROUPING_TITLES[grouping]} · fechas ascendentes",
+                    f"{GROUPING_TITLES[grouping]}",
                 )
             draw_group_title(university)
             draw_header_row()
@@ -478,57 +466,55 @@ def export_statistics_pdf(
             for record in group_rows:
                 values = (
                     _display_period(record["period"], grouping),
-                    university,
                     record["detail"],
                     f'{record["total"]:,}',
                 )
                 metrics = QFontMetrics(body_font)
                 heights = []
-                for value in values:
+                for column, value in enumerate(values):
+                    col_w = col_widths[column]
                     bounds = metrics.boundingRect(
                         0,
                         0,
-                        max(1, int(col_width - 14)),
+                        max(1, int(col_w - 8)),
                         4000,
                         int(Qt.AlignmentFlag.AlignLeft)
                         | int(Qt.TextFlag.TextWordWrap),
                         str(value),
                     )
                     heights.append(bounds.height())
-                row_height = max(25, max(heights, default=0) + 8)
+                row_height = max(24, max(heights, default=0) + 8)
 
                 if y + row_height > bottom:
                     y = begin_page(
                         "Detalle de accesos · continuación",
-                        f"Universidad: {university} · fechas ascendentes",
+                        f"Universidad: {university}",
                     )
                     draw_group_title(university, continuation=True)
                     draw_header_row()
 
                 painter.save()
                 painter.setClipRect(page_rect)
+                current_x = left
                 for column, value in enumerate(values):
-                    rect = QRectF(
-                        left + column * col_width,
-                        y,
-                        col_width,
-                        row_height,
-                    )
+                    col_w = col_widths[column]
+                    rect = QRectF(current_x, y, col_w, row_height)
                     _draw_cell(
                         painter,
                         rect,
                         value,
-                        font=small_font if column < 3 else body_font,
+                        font=body_font,
                         background=QColor("#ffffff"),
                         align=(
                             Qt.AlignmentFlag.AlignRight
-                            if column == 3
+                            if column == 2
                             else Qt.AlignmentFlag.AlignLeft
                         ),
                     )
+                    current_x += col_w
                 painter.restore()
                 y += row_height
-            y += 10
+            y += 6
 
     try:
         for report_index, (grouping, rows) in enumerate(selected_reports):

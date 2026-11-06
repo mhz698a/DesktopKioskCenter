@@ -39,12 +39,14 @@ class BarChartWidget(QWidget):
         parent=None,
         theme="dark",
         compact=False,
+        font_scale=1.0,
     ):
         super().__init__(parent)
         self.title = str(title)
         self.horizontal = bool(horizontal)
         self.theme = theme if theme in THEMES else "dark"
         self.compact = bool(compact)
+        self.font_scale = float(font_scale)
         self._items = []
         self.setMinimumHeight(180 if compact else (240 if horizontal else 255))
         self.setMinimumWidth(1 if compact else 420)
@@ -95,7 +97,8 @@ class BarChartWidget(QWidget):
 
         title_font = painter.font()
         title_font.setBold(True)
-        title_font.setPointSize(max(9, title_font.pointSize()))
+        base_title_size = max(9, title_font.pointSize())
+        title_font.setPointSize(max(8, int(base_title_size * self.font_scale)))
         painter.setFont(title_font)
         painter.setPen(text)
         painter.drawText(
@@ -143,7 +146,8 @@ class BarChartWidget(QWidget):
 
         label_font = painter.font()
         label_font.setBold(False)
-        label_font.setPointSize(7 if self.compact else 8)
+        base_label_size = 7 if self.compact else 8
+        label_font.setPointSize(max(6, int(base_label_size * self.font_scale)))
         painter.setFont(label_font)
         metrics = QFontMetrics(label_font)
 
@@ -214,13 +218,10 @@ class BarChartWidget(QWidget):
         chart_height = max(1, bottom - top)
 
         label_font = painter.font()
-        if self.compact:
-            label_font.setPointSize(7)
+        base_vert_size = 7 if self.compact else label_font.pointSize()
+        label_font.setPointSize(max(6, int(base_vert_size * self.font_scale)))
         painter.setFont(label_font)
-        painter.setPen(QPen(muted, 1, Qt.PenStyle.DotLine))
-        for tick in range(1, 5):
-            y = bottom - chart_height * tick / 4
-            painter.drawLine(int(left), int(y), int(right), int(y))
+        metrics = QFontMetrics(label_font)
 
         count = len(items)
         slot_width = chart_width / max(1, count)

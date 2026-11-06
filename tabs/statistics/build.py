@@ -64,8 +64,8 @@ class PdfExportOptionsDialog(QDialog):
         path_form = QFormLayout()
 
         self.paper_size_combo = QComboBox(self)
-        self.paper_size_combo.addItem("A4", "a4")
         self.paper_size_combo.addItem("Carta", "letter")
+        self.paper_size_combo.addItem("A4", "a4")
         self.paper_size_combo.setCurrentIndex(0)
         path_form.addRow("Tamaño de papel:", self.paper_size_combo)
 
@@ -90,7 +90,7 @@ class PdfExportOptionsDialog(QDialog):
             "Abrir el PDF al terminar la exportación",
             self,
         )
-        self.open_after_export_checkbox.setChecked(False)
+        self.open_after_export_checkbox.setChecked(True)
         layout.addWidget(self.open_after_export_checkbox)
 
         buttons = QDialogButtonBox(
