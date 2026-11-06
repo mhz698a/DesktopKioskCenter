@@ -6,6 +6,7 @@ from tabs.statistics.report_data import (
     UAQ_FULL_NAME,
     build_chart_data,
     build_zero_access_data,
+    sort_rows_by_university,
 )
 
 
@@ -157,6 +158,30 @@ class StatisticsChartDataTests(unittest.TestCase):
             "universities": ["Universidad X", "Universidad Y"],
             "faculties": ["Facultad A", "Facultad B"],
         })
+
+
+
+    def test_detail_rows_group_by_university_and_keep_dates_ascending(self):
+        rows = [
+            {"period": "2026-11-03", "origin": "Universidad", "source": "Universidad X", "total": 2},
+            {"period": "2026-11-01", "origin": "Universidad", "source": "Universidad Y", "total": 1},
+            {"period": "2026-11-01", "origin": "Universidad", "source": "Universidad X", "total": 4},
+            {"period": "2026-11-02", "origin": "UAQ", "source": "Facultad A", "total": 3},
+            {"period": "2026-11-01", "origin": "UAQ", "source": "Facultad B", "total": 5},
+        ]
+
+        ordered = sort_rows_by_university(rows)
+
+        self.assertEqual(
+            [(row["source"], row["period"]) for row in ordered],
+            [
+                ("Facultad B", "2026-11-01"),
+                ("Facultad A", "2026-11-02"),
+                ("Universidad X", "2026-11-01"),
+                ("Universidad X", "2026-11-03"),
+                ("Universidad Y", "2026-11-01"),
+            ],
+        )
 
 
     def test_invalid_grouping_is_rejected(self):
