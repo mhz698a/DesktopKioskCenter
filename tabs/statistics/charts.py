@@ -4,7 +4,7 @@ No requieren Matplotlib ni dependencias externas; se pintan con QPainter y puede
 exportarse directamente a PNG mediante QWidget.grab().
 """
 from PyQt6.QtCore import Qt, QRectF
-from PyQt6.QtGui import QPainter, QPen, QBrush, QFontMetrics, QPalette
+from PyQt6.QtGui import QColor, QPainter, QPen, QBrush, QFontMetrics
 from PyQt6.QtWidgets import QSizePolicy, QWidget
 
 
@@ -14,7 +14,8 @@ class BarChartWidget(QWidget):
         self.title = str(title)
         self.horizontal = bool(horizontal)
         self._items = []
-        self.setMinimumHeight(220 if horizontal else 235)
+        self.setMinimumHeight(240 if horizontal else 255)
+        self.setMinimumWidth(420)
         self.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Expanding,
@@ -29,19 +30,29 @@ class BarChartWidget(QWidget):
                 continue
             normalized.append((str(label), count))
         self._items = normalized
+
+        if self.horizontal:
+            self.setMinimumHeight(max(240, 58 + len(normalized) * 36))
+            self.setMinimumWidth(420)
+        else:
+            # Conserva espacio legible para cada periodo; el contenedor puede
+            # ofrecer desplazamiento horizontal cuando el rango sea extenso.
+            self.setMinimumHeight(255)
+            self.setMinimumWidth(max(420, 48 + len(normalized) * 58))
+        self.updateGeometry()
         self.update()
 
     def paintEvent(self, _event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
-        palette = self.palette()
-        surface = palette.color(QPalette.ColorRole.Base)
-        text = palette.color(QPalette.ColorRole.Text)
-        muted = palette.color(QPalette.ColorRole.Mid)
-        accent = palette.color(QPalette.ColorRole.Highlight)
-        border = palette.color(QPalette.ColorRole.Mid)
+        surface = QColor("#ffffff")
+        text = QColor("#20242b")
+        muted = QColor("#d5dbe3")
+        accent = QColor("#2563eb")
+        border = QColor("#d7dde5")
 
+        painter.fillRect(self.rect(), surface)
         bounds = QRectF(self.rect()).adjusted(1, 1, -1, -1)
         painter.setPen(QPen(border, 1))
         painter.setBrush(QBrush(surface))
@@ -59,45 +70,60 @@ class BarChartWidget(QWidget):
         )
 
         if not self._items:
-            painter.setPen(muted)
+            painter.setPen(QColor("#687385"))
             painter.drawText(
                 bounds.adjusted(12, 38, -12, -12),
                 Qt.AlignmentFlag.AlignCenter,
-                "Genera un reporte para visualizar los datos.",
+                "No hay categorías con accesos en este periodo.",
             )
             return
 
         if self.horizontal:
-            self._paint_horizontal(painter, text, muted, accent, surface)
+            self._paint_horizontal(painter, text, muted, accent)
         else:
             self._paint_vertical(painter, text, muted, accent)
 
-    def _paint_horizontal(self, painter, text, muted, accent, surface):
-        items = sorted(self._items, key=lambda item: item[1], reverse=True)[:8]
+    def _paint_horizontal(self, painter, text, muted, accent):
+        # No se limita el número de instituciones ni facultades: el widget
+        # crece verticalmente y su contenedor proporciona scroll.
+        items = sorted(
+            self._items,
+            key=lambda item: (-item[1], item[0].casefold()),
+        )
         maximum = max((value for _, value in items), default=1) or 1
         top = 44
-        bottom = self.height() - 14
-        row_height = max(18, (bottom - top) / max(1, len(items)))
-        label_width = min(220, max(150, int(self.width() * 0.52)))
+        bottom = self.height() - 12
+        row_height = max(32.0, (bottom - top) / max(1, len(items)))
+
+        label_width = min(330, max(150, int(self.width() * 0.42)))
         bar_left = 14 + label_width
-        bar_width = max(28, self.width() - bar_left - 43)
+        value_area = 48
+        bar_width = max(24, self.width() - bar_left - value_area - 18)
         metrics = QFontMetrics(painter.font())
-        label_color = text
-        max_label = max(28, label_width - 8)
 
         for index, (label, value) in enumerate(items):
             y = top + index * row_height
-            label_rect = QRectF(12, y, label_width, row_height)
-            painter.setPen(label_color)
+            label_rect = QRectF(
+                12,
+                y + 1,
+                max(80, label_width - 10),
+                max(24, row_height - 2),
+            )
+            painter.setPen(text)
             painter.drawText(
                 label_rect,
-                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-                metrics.elidedText(
-                    label, Qt.TextElideMode.ElideRight, max_label
-                ),
+                Qt.AlignmentFlag.AlignLeft
+                | Qt.AlignmentFlag.AlignVCenter
+                | Qt.TextFlag.TextWordWrap,
+                label,
             )
 
-            bar_rect = QRectF(bar_left, y + row_height * 0.23, bar_width, row_height * 0.54)
+            bar_rect = QRectF(
+                bar_left,
+                y + row_height * 0.31,
+                bar_width,
+                max(7.0, row_height * 0.38),
+            )
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(QBrush(muted))
             painter.drawRoundedRect(bar_rect, 4, 4)
@@ -106,19 +132,36 @@ class BarChartWidget(QWidget):
             if value_width > 0:
                 painter.setBrush(QBrush(accent))
                 painter.drawRoundedRect(
-                    QRectF(bar_left, bar_rect.y(), value_width, bar_rect.height()),
-                    4, 4,
+                    QRectF(
+                        bar_left,
+                        bar_rect.y(),
+                        value_width,
+                        bar_rect.height(),
+                    ),
+                    4,
+                    4,
                 )
 
             painter.setPen(text)
             painter.drawText(
-                QRectF(bar_left + bar_width + 5, y, 32, row_height),
+                QRectF(
+                    bar_left + bar_width + 5,
+                    y,
+                    value_area,
+                    row_height,
+                ),
                 Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-                str(value),
+                metrics.elidedText(
+                    str(value),
+                    Qt.TextElideMode.ElideRight,
+                    value_area,
+                ),
             )
 
     def _paint_vertical(self, painter, text, muted, accent):
-        items = self._items[-14:]
+        # Se muestran todos los periodos; el ancho mínimo permite desplazarse
+        # horizontalmente en rangos largos en lugar de descartar fechas.
+        items = self._items
         maximum = max((value for _, value in items), default=1) or 1
         left, right = 28, self.width() - 14
         top, bottom = 48, self.height() - 38
@@ -154,7 +197,8 @@ class BarChartWidget(QWidget):
                 QRectF(center_x - slot_width / 2, bottom + 5, slot_width, 25),
                 Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop,
                 metrics.elidedText(
-                    label, Qt.TextElideMode.ElideRight,
+                    label,
+                    Qt.TextElideMode.ElideRight,
                     max(22, int(slot_width - 2)),
                 ),
             )
