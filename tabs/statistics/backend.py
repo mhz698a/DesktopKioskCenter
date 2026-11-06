@@ -48,12 +48,16 @@ class StatisticsBackend(QObject):
 
         period_chart_data = []
         for period, value in sorted(period_totals.items()):
+            raw_period = (
+                period.removeprefix("Semana del ")
+                if grouping == "week" else period
+            )
             if grouping == "day":
-                label = period[8:10] + "/" + period[5:7]
+                label = raw_period[8:10] + "/" + raw_period[5:7]
             elif grouping == "week":
-                label = "Sem " + period[8:10] + "/" + period[5:7]
+                label = "Sem " + raw_period[8:10] + "/" + raw_period[5:7]
             else:
-                label = period[5:7] + "/" + period[:4]
+                label = raw_period[5:7] + "/" + raw_period[:4]
             period_chart_data.append((label, value))
 
         source_chart_data = sorted(
