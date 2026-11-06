@@ -24,6 +24,7 @@ from tabs.statistics.report_data import (
     UAQ_FULL_NAME,
     build_chart_data,
     build_zero_access_data,
+    university_group_label,
 )
 
 
@@ -89,16 +90,8 @@ def _group_detail_rows(rows):
     """Agrupa por institución y conserva las fechas en orden ascendente."""
     groups = defaultdict(list)
     for row in rows:
-        origin = str(row.get("origin") or "Sin clasificar")
         source = str(row.get("source") or "Sin especificar")
-        if origin == "UAQ":
-            university = UAQ_FULL_NAME
-        elif origin == "Universidad":
-            university = source or "Universidad no especificada"
-        elif origin == "Público en general":
-            university = "Público en general"
-        else:
-            university = origin
+        university = university_group_label(row)
 
         groups[university].append({
             "period": str(row.get("period") or ""),
