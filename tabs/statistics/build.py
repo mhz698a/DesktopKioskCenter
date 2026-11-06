@@ -2,6 +2,7 @@
 from pathlib import Path
 
 from PyQt6.QtCore import QDate, Qt, pyqtSignal, QStandardPaths
+from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -309,7 +310,32 @@ class StatisticsTab(QWidget):
 
     def set_report_rows(self, rows, total):
         self.table.setRowCount(0)
-        for row_index, record in enumerate(rows):
+        current_group = None
+
+        for record in rows:
+            origin = str(record.get("origin") or "Sin clasificar")
+            source = str(record.get("source") or "Sin especificar")
+            if origin == "UAQ":
+                group_label = "Universidad Autónoma de Querétaro"
+            elif origin == "Universidad":
+                group_label = source or "Universidad no especificada"
+            elif origin == "Público en general":
+                group_label = "Público en general"
+            else:
+                group_label = origin
+
+            if group_label != current_group:
+                group_row = self.table.rowCount()
+                self.table.insertRow(group_row)
+                group_item = QTableWidgetItem(group_label)
+                group_item.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+                group_item.setBackground(QColor("#e9edf2"))
+                group_item.setForeground(QColor("#25364a"))
+                self.table.setItem(group_row, 0, group_item)
+                self.table.setSpan(group_row, 0, 1, 4)
+                current_group = group_label
+
+            row_index = self.table.rowCount()
             self.table.insertRow(row_index)
             values = (
                 record.get("period", ""),
@@ -321,9 +347,11 @@ class StatisticsTab(QWidget):
                 self.table.setItem(
                     row_index, column, QTableWidgetItem(str(value or ""))
                 )
+
         self.total_label.setText(f"Total de accesos: {int(total)}")
         self.export_button.setEnabled(bool(rows))
         self.export_charts_button.setEnabled(bool(rows))
+        self.export_pdf_button.setEnabled(bool(rows))
 
     def set_chart_data(
         self,
