@@ -183,6 +183,49 @@ class DatabaseTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.db.generate_access_report("2026-11-01", "2026-11-05", "year")
 
+
+    def test_access_report_catalog_includes_registered_and_historical_entities(self):
+        self.db.add_internal_student({
+            "nombres": "Ana",
+            "apellidos": "Pérez",
+            "email": "ana.catalog@example.com",
+            "facultad": "Facultad de Derecho",
+            "expediente": "CAT001",
+        })
+        self.db.add_external_user({
+            "nombres": "Luis",
+            "apellidos": "López",
+            "email": "luis.catalog@example.com",
+            "tipo_usuario": "Estudiante Externo",
+            "universidad": "Universidad Y",
+        })
+        self.db.record_access_log(
+            kiosk_name="PC 1",
+            nombres="Eva",
+            apellidos="García",
+            facultad="Facultad de Informática",
+            tipo_usuario="Alumno interno",
+            accessed_at="2026-11-02 09:00:00",
+        )
+        self.db.record_access_log(
+            kiosk_name="PC 2",
+            nombres="Mario",
+            apellidos="Díaz",
+            universidad_externa="Universidad X",
+            tipo_usuario="Estudiante Externo",
+            accessed_at="2026-11-02 10:00:00",
+        )
+
+        catalog = self.db.get_access_report_catalog()
+        self.assertEqual(
+            catalog["universities"],
+            ["Universidad X", "Universidad Y"],
+        )
+        self.assertEqual(
+            catalog["faculties"],
+            ["Facultad de Derecho", "Facultad de Informática"],
+        )
+
     def test_manual_student_unlock_records_simulated_registration_and_access(self):
         student_id = self.db.add_internal_student({
             "nombres": "Ana", "apellidos": "Pérez", "email": "ana@example.com",
