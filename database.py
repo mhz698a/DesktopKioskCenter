@@ -888,6 +888,54 @@ class Database:
             ).fetchall()
             return self._as_dicts(rows)
 
+    def get_access_report_catalog(self) -> dict[str, list[str]]:
+        """Devuelve universidades y facultades registradas o presentes en el historial.
+
+        El catálogo permite distinguir entidades con cero accesos dentro del rango
+        solicitado sin inventar universidades o facultades que no estén registradas.
+        """
+        with self.connection() as connection:
+            universities = connection.execute(
+                """
+                SELECT name
+                FROM (
+                    SELECT TRIM(universidad) AS name
+                    FROM external_users
+                    WHERE lower(trim(tipo_usuario)) IN
+                          ('estudiante externo', 'estudiante')
+                      AND TRIM(universidad) <> ''
+                    UNION
+                    SELECT TRIM(universidad_externa) AS name
+                    FROM access_logs
+                    WHERE lower(trim(tipo_usuario)) IN
+                          ('estudiante externo', 'estudiante')
+                      AND TRIM(universidad_externa) <> ''
+                )
+                ORDER BY name COLLATE NOCASE
+                """
+            ).fetchall()
+            faculties = connection.execute(
+                """
+                SELECT name
+                FROM (
+                    SELECT TRIM(facultad) AS name
+                    FROM internal_students
+                    WHERE TRIM(facultad) <> ''
+                    UNION
+                    SELECT TRIM(facultad) AS name
+                    FROM access_logs
+                    WHERE lower(trim(tipo_usuario)) = 'alumno interno'
+                      AND TRIM(facultad) <> ''
+                )
+                ORDER BY name COLLATE NOCASE
+                """
+            ).fetchall()
+
+        return {
+            "universities": [str(row["name"]) for row in universities],
+            "faculties": [str(row["name"]) for row in faculties],
+        }
+
     def list_received_logins(self, limit: int | None = 1000) -> list[dict]:
         """Lista los eventos más recientes que el servidor central ha recibido."""
         with self.connection() as connection:
