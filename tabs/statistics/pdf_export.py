@@ -277,10 +277,8 @@ def export_statistics_pdf(
                     0,
                     int(label_width - 16),
                     4000,
-                    int(
-                        Qt.AlignmentFlag.AlignLeft
-                        | Qt.TextFlag.TextWordWrap
-                    ),
+                    int(Qt.AlignmentFlag.AlignLeft)
+                    | int(Qt.TextFlag.TextWordWrap),
                     label,
                 )
                 row_height = max(line_height, bounds.height() + 10)
