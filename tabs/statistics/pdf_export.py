@@ -136,8 +136,9 @@ def export_statistics_pdf(
     end_date,
     reports,
     catalog=None,
+    paper_size="a4",
 ):
-    """Genera un PDF A4 horizontal, con tres gráficas por hoja y tablas completas.
+    """Genera un PDF horizontal en A4 o Carta, con tres gráficas por hoja.
 
     Las cuatro áreas de cada página de gráficas son: periodo, procedencia general,
     facultades y catálogo de entidades sin accesos. Los datos se dividen en bloques
@@ -157,16 +158,28 @@ def export_statistics_pdf(
         raise ValueError("No hay periodos seleccionados para exportar.")
 
     catalog = catalog or {}
+    normalized_paper_size = str(paper_size or "a4").strip().lower()
+    paper_sizes = {
+        "a4": (QPageSize.PageSizeId.A4, "A4"),
+        "letter": (QPageSize.PageSizeId.Letter, "Carta"),
+        "carta": (QPageSize.PageSizeId.Letter, "Carta"),
+    }
+    if normalized_paper_size not in paper_sizes:
+        raise ValueError("El tamaño de papel debe ser A4 o Carta.")
+    page_size_id, page_size_label = paper_sizes[normalized_paper_size]
+
     if output_path.exists():
         output_path.unlink()
 
     writer = QPdfWriter(str(output_path))
-    writer.setTitle("Reporte de accesos - DesktopKioskCenter")
+    writer.setTitle(
+        f"Reporte de accesos - DesktopKioskCenter ({page_size_label})"
+    )
     writer.setCreator("DesktopKioskCenter")
     writer.setResolution(144)
     writer.setPageLayout(
         QPageLayout(
-            QPageSize(QPageSize.PageSizeId.A4),
+            QPageSize(page_size_id),
             QPageLayout.Orientation.Landscape,
             QMarginsF(16, 16, 16, 16),
             QPageLayout.Unit.Millimeter,
