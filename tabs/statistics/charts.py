@@ -8,14 +8,46 @@ from PyQt6.QtGui import QColor, QPainter, QPen, QBrush, QFontMetrics
 from PyQt6.QtWidgets import QSizePolicy, QWidget
 
 
+THEMES = {
+    "dark": {
+        "background": "#202327",
+        "surface": "#262b31",
+        "text": "#e8edf2",
+        "muted": "#414954",
+        "accent": "#5b9bff",
+        "border": "#414954",
+        "secondary_text": "#aeb8c4",
+    },
+    "light": {
+        "background": "#ffffff",
+        "surface": "#ffffff",
+        "text": "#20242b",
+        "muted": "#d5dbe3",
+        "accent": "#2563eb",
+        "border": "#d7dde5",
+        "secondary_text": "#687385",
+    },
+}
+
+
 class BarChartWidget(QWidget):
-    def __init__(self, title, *, horizontal=False, parent=None):
+    def __init__(
+        self,
+        title,
+        *,
+        horizontal=False,
+        parent=None,
+        theme="dark",
+        compact=False,
+    ):
         super().__init__(parent)
         self.title = str(title)
         self.horizontal = bool(horizontal)
+        self.theme = theme if theme in THEMES else "dark"
+        self.compact = bool(compact)
         self._items = []
-        self.setMinimumHeight(240 if horizontal else 255)
-        self.setMinimumWidth(420)
+        self.setMinimumHeight(180 if compact else (240 if horizontal else 255))
+        self.setMinimumWidth(1 if compact else 420)
         self.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Expanding,
@@ -32,13 +64,15 @@ class BarChartWidget(QWidget):
         self._items = normalized
 
         if self.horizontal:
-            self.setMinimumHeight(max(240, 58 + len(normalized) * 48))
-            self.setMinimumWidth(420)
+            row_height = 28 if self.compact else 48
+            min_height = 58 + len(normalized) * row_height
+            self.setMinimumHeight(max(180 if self.compact else 240, min_height))
+            self.setMinimumWidth(1 if self.compact else 420)
         else:
-            # Conserva espacio legible para cada periodo; el contenedor puede
-            # ofrecer desplazamiento horizontal cuando el rango sea extenso.
-            self.setMinimumHeight(255)
-            self.setMinimumWidth(max(420, 48 + len(normalized) * 58))
+            self.setMinimumHeight(210 if self.compact else 255)
+            self.setMinimumWidth(
+                1 if self.compact else max(420, 48 + len(normalized) * 58)
+            )
         self.updateGeometry()
         self.update()
 
@@ -46,13 +80,14 @@ class BarChartWidget(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
-        surface = QColor("#ffffff")
-        text = QColor("#20242b")
-        muted = QColor("#d5dbe3")
-        accent = QColor("#2563eb")
-        border = QColor("#d7dde5")
+        colors = THEMES[self.theme]
+        surface = QColor(colors["surface"])
+        text = QColor(colors["text"])
+        muted = QColor(colors["muted"])
+        accent = QColor(colors["accent"])
+        border = QColor(colors["border"])
 
-        painter.fillRect(self.rect(), surface)
+        painter.fillRect(self.rect(), QColor(colors["background"]))
         bounds = QRectF(self.rect()).adjusted(1, 1, -1, -1)
         painter.setPen(QPen(border, 1))
         painter.setBrush(QBrush(surface))
@@ -70,7 +105,7 @@ class BarChartWidget(QWidget):
         )
 
         if not self._items:
-            painter.setPen(QColor("#687385"))
+            painter.setPen(QColor(colors["secondary_text"]))
             painter.drawText(
                 bounds.adjusted(12, 38, -12, -12),
                 Qt.AlignmentFlag.AlignCenter,
@@ -84,8 +119,7 @@ class BarChartWidget(QWidget):
             self._paint_vertical(painter, text, muted, accent)
 
     def _paint_horizontal(self, painter, text, muted, accent):
-        # No se limita el número de instituciones ni facultades: el widget
-        # crece verticalmente y su contenedor proporciona scroll.
+        # No se limita el número de instituciones ni facultades.
         items = sorted(
             self._items,
             key=lambda item: (-item[1], item[0].casefold()),
@@ -93,15 +127,23 @@ class BarChartWidget(QWidget):
         maximum = max((value for _, value in items), default=1) or 1
         top = 44
         bottom = self.height() - 12
-        row_height = max(48.0, (bottom - top) / max(1, len(items)))
+        min_row_height = 28 if self.compact else 48
+        row_height = max(
+            min_row_height,
+            (bottom - top) / max(1, len(items)),
+        )
 
-        label_width = min(330, max(150, int(self.width() * 0.42)))
+        label_width = min(
+            330 if not self.compact else 210,
+            max(150, int(self.width() * 0.42)),
+        )
         bar_left = 14 + label_width
-        value_area = 48
+        value_area = 42 if self.compact else 48
         bar_width = max(24, self.width() - bar_left - value_area - 18)
+
         label_font = painter.font()
         label_font.setBold(False)
-        label_font.setPointSize(8)
+        label_font.setPointSize(7 if self.compact else 8)
         painter.setFont(label_font)
         metrics = QFontMetrics(label_font)
 
@@ -111,7 +153,7 @@ class BarChartWidget(QWidget):
                 12,
                 y + 1,
                 max(80, label_width - 10),
-                max(24, row_height - 2),
+                max(22, row_height - 2),
             )
             painter.setPen(text)
             painter.drawText(
@@ -126,7 +168,7 @@ class BarChartWidget(QWidget):
                 bar_left,
                 y + row_height * 0.31,
                 bar_width,
-                max(7.0, row_height * 0.38),
+                max(6.0, row_height * 0.38),
             )
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(QBrush(muted))
@@ -163,8 +205,7 @@ class BarChartWidget(QWidget):
             )
 
     def _paint_vertical(self, painter, text, muted, accent):
-        # Se muestran todos los periodos; el ancho mínimo permite desplazarse
-        # horizontalmente en rangos largos en lugar de descartar fechas.
+        # Se muestran todos los periodos, también en las imágenes de PDF.
         items = self._items
         maximum = max((value for _, value in items), default=1) or 1
         left, right = 28, self.width() - 14
@@ -172,7 +213,10 @@ class BarChartWidget(QWidget):
         chart_width = max(1, right - left)
         chart_height = max(1, bottom - top)
 
-        painter.setFont(self.font())
+        label_font = painter.font()
+        if self.compact:
+            label_font.setPointSize(7)
+        painter.setFont(label_font)
         painter.setPen(QPen(muted, 1, Qt.PenStyle.DotLine))
         for tick in range(1, 5):
             y = bottom - chart_height * tick / 4
@@ -180,8 +224,8 @@ class BarChartWidget(QWidget):
 
         count = len(items)
         slot_width = chart_width / max(1, count)
-        bar_width = max(5.0, min(28.0, slot_width * 0.62))
-        metrics = QFontMetrics(painter.font())
+        bar_width = max(3.0, min(28.0, slot_width * 0.62))
+        metrics = QFontMetrics(label_font)
 
         for index, (label, value) in enumerate(items):
             center_x = left + slot_width * (index + 0.5)
@@ -203,6 +247,6 @@ class BarChartWidget(QWidget):
                 metrics.elidedText(
                     label,
                     Qt.TextElideMode.ElideRight,
-                    max(22, int(slot_width - 2)),
+                    max(10, int(slot_width - 2)),
                 ),
             )
