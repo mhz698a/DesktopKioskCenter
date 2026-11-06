@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QSplitter,
+    QScrollArea,
     QTabWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -229,7 +230,9 @@ class StatisticsTab(QWidget):
         self.charts_panel = QTabWidget(splitter)
         self.charts_panel.setMinimumWidth(340)
 
-        general_page = QWidget(self.charts_panel)
+        general_scroll = QScrollArea(self.charts_panel)
+        general_scroll.setWidgetResizable(True)
+        general_page = QWidget()
         general_layout = QVBoxLayout(general_page)
         general_layout.setContentsMargins(6, 6, 6, 6)
         general_layout.setSpacing(10)
@@ -241,28 +244,51 @@ class StatisticsTab(QWidget):
             "Accesos por periodo", horizontal=False, parent=general_page
         )
         self.general_origin_chart = BarChartWidget(
-            "Procedencia general (facultades consolidadas)",
+            "Procedencia general (todas las universidades con accesos)",
             horizontal=True,
             parent=general_page,
         )
-        general_layout.addWidget(self.access_chart, 1)
-        general_layout.addWidget(self.general_origin_chart, 1)
-        faculties_page = QWidget(self.charts_panel)
+        self.zero_universities_label = QLabel(general_page)
+        self.zero_universities_label.setWordWrap(True)
+        self.zero_universities_label.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+        self.zero_universities_label.hide()
+        general_layout.addWidget(self.access_chart, 0)
+        general_layout.addWidget(self.general_origin_chart, 0)
+        general_layout.addWidget(self.zero_universities_label, 0)
+        general_layout.addStretch(1)
+        general_scroll.setWidget(general_page)
+
+        faculty_scroll = QScrollArea(self.charts_panel)
+        faculty_scroll.setWidgetResizable(True)
+        faculties_page = QWidget()
         faculties_layout = QVBoxLayout(faculties_page)
         faculties_layout.setContentsMargins(6, 6, 6, 6)
+        faculties_layout.setSpacing(10)
         faculties_layout.addWidget(QLabel(
             "Accesos de alumnos internos distribuidos por facultad de la "
             "Universidad Autónoma de Querétaro.",
             faculties_page,
         ))
         self.faculty_chart = BarChartWidget(
-            "Accesos por facultad",
+            "Accesos por facultad (todas las facultades con accesos)",
             horizontal=True,
             parent=faculties_page,
         )
-        faculties_layout.addWidget(self.faculty_chart, 1)
-        self.charts_panel.addTab(faculties_page, "Procedencia Facultades")
-        self.charts_panel.addTab(general_page, "Procedencia General")
+        self.zero_faculties_label = QLabel(faculties_page)
+        self.zero_faculties_label.setWordWrap(True)
+        self.zero_faculties_label.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+        self.zero_faculties_label.hide()
+        faculties_layout.addWidget(self.faculty_chart, 0)
+        faculties_layout.addWidget(self.zero_faculties_label, 0)
+        faculties_layout.addStretch(1)
+        faculty_scroll.setWidget(faculties_page)
+
+        self.charts_panel.addTab(faculty_scroll, "Procedencia Facultades")
+        self.charts_panel.addTab(general_scroll, "Procedencia General")
 
         splitter.addWidget(report_panel)
         splitter.addWidget(self.charts_panel)
@@ -299,10 +325,40 @@ class StatisticsTab(QWidget):
         self.export_button.setEnabled(bool(rows))
         self.export_charts_button.setEnabled(bool(rows))
 
-    def set_chart_data(self, period_totals, general_origins, faculties):
+    def set_chart_data(
+        self,
+        period_totals,
+        general_origins,
+        faculties,
+        zero_access_data=None,
+    ):
         self.access_chart.set_data(period_totals)
         self.general_origin_chart.set_data(general_origins)
         self.faculty_chart.set_data(faculties)
+
+        zero_access_data = zero_access_data or {}
+        zero_universities = zero_access_data.get("universities", [])
+        zero_faculties = zero_access_data.get("faculties", [])
+
+        if zero_universities:
+            self.zero_universities_label.setText(
+                "Universidades sin accesos en el rango seleccionado:\n"
+                + "\n".join(f"• {name}" for name in zero_universities)
+            )
+            self.zero_universities_label.show()
+        else:
+            self.zero_universities_label.clear()
+            self.zero_universities_label.hide()
+
+        if zero_faculties:
+            self.zero_faculties_label.setText(
+                "Facultades sin accesos en el rango seleccionado:\n"
+                + "\n".join(f"• {name}" for name in zero_faculties)
+            )
+            self.zero_faculties_label.show()
+        else:
+            self.zero_faculties_label.clear()
+            self.zero_faculties_label.hide()
 
     def choose_export_path(self):
         path, _selected_filter = QFileDialog.getSaveFileName(
