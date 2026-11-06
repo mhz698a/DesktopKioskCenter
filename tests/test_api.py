@@ -94,7 +94,7 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(unknown.status_code, 401)
         self.assertEqual(unknown.get_json(), {
             "unlocked": False,
-            "message": "El correo electrónico o expediente no está registrado. Realice su registro primero."
+            "message": "El correo electrónico o expediente no está registrado. Realice su registro primero en el mostrador."
         })
         self.db.add_internal_student({
             "nombres": "Example", "apellidos": "Prueba",
