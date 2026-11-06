@@ -23,6 +23,7 @@ from tabs.statistics.charts import BarChartWidget
 from tabs.statistics.report_data import (
     UAQ_FULL_NAME,
     build_chart_data,
+    build_zero_access_data,
 )
 
 
@@ -452,7 +453,6 @@ def export_statistics_pdf(
                         total=len(values),
                     )
 
-            from tabs.statistics.report_data import build_zero_access_data
             zero_access = build_zero_access_data(rows, catalog)
             draw_zero_access_pages(zero_access, grouping)
             draw_detail_tables(rows, grouping)
