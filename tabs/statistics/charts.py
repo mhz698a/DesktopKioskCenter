@@ -78,7 +78,7 @@ class BarChartWidget(QWidget):
         top = 44
         bottom = self.height() - 14
         row_height = max(18, (bottom - top) / max(1, len(items)))
-        label_width = min(130, max(84, int(self.width() * 0.40)))
+        label_width = min(220, max(150, int(self.width() * 0.52)))
         bar_left = 14 + label_width
         bar_width = max(28, self.width() - bar_left - 43)
         metrics = QFontMetrics(painter.font())
