@@ -62,6 +62,13 @@ class PdfExportOptionsDialog(QDialog):
         layout.addLayout(periods_layout)
 
         path_form = QFormLayout()
+
+        self.paper_size_combo = QComboBox(self)
+        self.paper_size_combo.addItem("A4", "a4")
+        self.paper_size_combo.addItem("Carta", "letter")
+        self.paper_size_combo.setCurrentIndex(0)
+        path_form.addRow("Tamaño de papel:", self.paper_size_combo)
+
         path_row = QHBoxLayout()
         documents = QStandardPaths.writableLocation(
             QStandardPaths.StandardLocation.DocumentsLocation
@@ -148,6 +155,7 @@ class PdfExportOptionsDialog(QDialog):
         return {
             "groupings": periods,
             "filename": self.path_edit.text().strip(),
+            "paper_size": str(self.paper_size_combo.currentData()),
             "open_after_export": self.open_after_export_checkbox.isChecked(),
         }
 
