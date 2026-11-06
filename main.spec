@@ -58,6 +58,8 @@ a = Analysis(
         "tabs.statistics.build",
         "tabs.statistics.backend",
         "tabs.statistics.charts",
+        "tabs.statistics.report_data",
+        "tabs.statistics.pdf_export",
         "tabs.user_assignment",
     ],
     hookspath=[],
