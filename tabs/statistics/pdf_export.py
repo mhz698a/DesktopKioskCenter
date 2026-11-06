@@ -245,7 +245,7 @@ def export_statistics_pdf(
         y_image = target.top() + (target.height() - scaled.height()) / 2
         painter.drawImage(QPointF(x, y_image), scaled)
 
-    def draw_zero_access_pages(zero_access):
+    def draw_zero_access_pages(zero_access, grouping):
         university_names = list(zero_access.get("universities", []))
         faculty_names = list(zero_access.get("faculties", []))
         sections = []
@@ -257,7 +257,7 @@ def export_statistics_pdf(
             return
 
         y = begin_page(
-            "Entidades sin accesos",
+            f"Entidades sin accesos · {GROUPING_TITLES[grouping]}",
             f"Catálogo registrado sin actividad entre {start_date} y {end_date}",
         )
         line_height = 28
@@ -265,7 +265,9 @@ def export_statistics_pdf(
 
         for section_title, names in sections:
             if y + 42 > bottom:
-                y = begin_page("Entidades sin accesos · continuación")
+                y = begin_page(
+                    f"Entidades sin accesos · {GROUPING_TITLES[grouping]} · continuación"
+                )
             painter.setFont(section_font)
             painter.setPen(QColor("#25364a"))
             painter.drawText(
@@ -292,7 +294,7 @@ def export_statistics_pdf(
                 row_height = max(line_height, bounds.height() + 10)
                 if y + row_height > bottom:
                     y = begin_page(
-                        "Entidades sin accesos · continuación",
+                        f"Entidades sin accesos · {GROUPING_TITLES[grouping]} · continuación",
                         section_title,
                     )
                     painter.setFont(section_font)
@@ -429,8 +431,6 @@ def export_statistics_pdf(
 
     try:
         for grouping, rows in selected_reports:
-            if not rows:
-                continue
             period_data, general_data, faculty_data = build_chart_data(
                 rows,
                 grouping,
@@ -454,7 +454,7 @@ def export_statistics_pdf(
 
             from tabs.statistics.report_data import build_zero_access_data
             zero_access = build_zero_access_data(rows, catalog)
-            draw_zero_access_pages(zero_access)
+            draw_zero_access_pages(zero_access, grouping)
             draw_detail_tables(rows, grouping)
     finally:
         painter.end()
