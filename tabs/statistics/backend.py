@@ -1,9 +1,8 @@
 """Consultas y exportación del generador de estadísticas."""
 import csv
 
-from PyQt6.QtCore import QUrl
+from PyQt6.QtCore import QObject, QUrl
 from PyQt6.QtGui import QDesktopServices
-from PyQt6.QtCore import QObject
 
 from css.cQDialogs import cQMsgBox
 from database import Database
