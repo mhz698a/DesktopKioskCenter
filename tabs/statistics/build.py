@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import (
     QDialogButtonBox,
     QFileDialog,
     QFormLayout,
+    QHeaderView,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -100,9 +101,8 @@ class PdfExportOptionsDialog(QDialog):
             self.path_edit.text().strip() or "Reporte_Accesos.pdf",
             "Documento PDF (*.pdf)",
         )
-        # Cancelar la selección de destino cancela todo el flujo de exportación.
+        # Cancelar el selector mantiene abierto el diálogo de opciones.
         if not filename:
-            self.reject()
             return
         if not filename.lower().endswith(".pdf"):
             filename += ".pdf"
@@ -220,7 +220,9 @@ class StatisticsTab(QWidget):
         self.table.setHorizontalHeaderLabels(
             ["Periodo", "Procedencia", "Universidad / facultad", "Accesos"]
         )
-        self.table.horizontalHeader().setStretchLastSection(True)
+        self.table.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.Stretch
+        )
         report_layout.addWidget(self.total_label)
         report_layout.addWidget(self.table, 1)
 
