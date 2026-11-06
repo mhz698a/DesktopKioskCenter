@@ -69,6 +69,31 @@ def build_chart_data(rows, grouping):
     return period_data, general_data, faculty_data
 
 
+def university_group_label(record):
+    """Resuelve la institución que agrupa una fila del reporte de accesos."""
+    origin = str(record.get("origin") or "Sin clasificar")
+    source = str(record.get("source") or "Sin especificar")
+    if origin == "UAQ":
+        return UAQ_FULL_NAME
+    if origin == "Universidad":
+        return source or "Universidad no especificada"
+    if origin == PUBLIC_GENERAL_LABEL:
+        return PUBLIC_GENERAL_LABEL
+    return origin
+
+
+def sort_rows_by_university(rows):
+    """Ordena por institución y, dentro de cada una, por fecha ascendente."""
+    return sorted(
+        rows,
+        key=lambda record: (
+            university_group_label(record).casefold(),
+            str(record.get("period") or ""),
+            str(record.get("source") or "").casefold(),
+        ),
+    )
+
+
 def build_zero_access_data(rows, catalog=None):
     """Identifica universidades y facultades registradas sin accesos en el rango."""
     catalog = catalog or {}
