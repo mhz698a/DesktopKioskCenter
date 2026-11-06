@@ -80,11 +80,13 @@ La pestaña **Estadísticas** consulta `access_logs` por un rango inclusivo de f
 El panel de gráficas de **Estadísticas** se divide en dos pestañas:
 
 - **Procedencia General**: agrega todos los accesos de las facultades y del personal interno en una sola categoría llamada `Universidad Autónoma de Querétaro`. Las universidades externas se mantienen separadas por institución y el público general aparece como otra categoría.
-- **Procedencia Facultades**: muestra por separado cada facultad con accesos de alumnos internos UAQ. Los accesos del personal interno no se atribuyen a una facultad.
+- **Procedencia Facultades**: muestra todas las facultades con accesos de alumnos internos UAQ. Las instituciones y facultades con actividad se muestran completas, sin un límite de categorías; las que tienen cero accesos se enumeran en bloques separados.
+- El catálogo de ceros combina entidades de `internal_students`, `external_users` y el historial en `access_logs`, por lo que no depende de que hayan iniciado sesión durante el rango elegido.
+- Las gráficas utilizan fondo blanco. En la interfaz se desplazan vertical u horizontalmente según el número de categorías; no se descartan universidades, facultades ni periodos.
 
-El botón **Exportar PDF** abre un diálogo en el que se pueden marcar uno o varios periodos (día, semana y mes), confirmar la ruta y el nombre del archivo y decidir si se abre el documento al terminar. Cancelar el diálogo o cancelar la selección de destino cancela toda la exportación. El PDF incluye tablas de detalle y las gráficas de evolución, procedencia general y facultades para cada periodo seleccionado.
+El botón **Exportar PDF** permite marcar uno o varios periodos (día, semana y mes), confirmar la ruta y el nombre del archivo y decidir si se abre el documento al terminar. Cancelar el selector de destino conserva abierto el diálogo de opciones; cancelar el diálogo principal sí cancela la exportación. El PDF pagina las gráficas por bloques para mantener su escala dentro del área imprimible, incluye listas de instituciones y facultades sin accesos únicamente cuando existen, y dibuja las tablas a todo el ancho disponible respetando los márgenes. El detalle se agrupa por universidad y conserva el orden ascendente de fechas dentro de cada grupo.
 
-La generación de PDF utiliza `QPdfWriter` y `QTextDocument` de Qt; no agrega dependencias de terceros.
+La generación de PDF utiliza `QPdfWriter` y `QPainter` de Qt; no agrega dependencias de terceros.
 
 ### Desbloqueo administrativo atribuido a un alumno
 
