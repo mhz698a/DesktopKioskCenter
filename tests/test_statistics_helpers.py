@@ -147,6 +147,18 @@ class StatisticsChartDataTests(unittest.TestCase):
         })
         self.assertEqual(zero_access, {"universities": [], "faculties": []})
 
+
+    def test_empty_range_lists_every_catalog_entry_as_zero_access(self):
+        zero_access = build_zero_access_data([], {
+            "universities": ["Universidad X", "Universidad Y"],
+            "faculties": ["Facultad A", "Facultad B"],
+        })
+        self.assertEqual(zero_access, {
+            "universities": ["Universidad X", "Universidad Y"],
+            "faculties": ["Facultad A", "Facultad B"],
+        })
+
+
     def test_invalid_grouping_is_rejected(self):
         with self.assertRaises(ValueError):
             build_chart_data(self.rows, "year")
