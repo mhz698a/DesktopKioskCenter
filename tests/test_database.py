@@ -210,6 +210,40 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(access[0]["expediente"], "12345")
         self.assertEqual(access[0]["tipo_usuario"], "Alumno interno")
 
+    def test_manual_public_general_assignment_records_public_session(self):
+        user_id = self.db.add_external_user({
+            "nombres": "Luis",
+            "apellidos": "Pérez",
+            "email": "luis.publico@example.com",
+            "tipo_usuario": "Público en general",
+            "universidad": "",
+        })
+        user = next(
+            item for item in self.db.list_external_users()
+            if item["id"] == user_id
+        )
+        result = self.db.record_manual_user_session(
+            kiosk_name="PC Público 1",
+            client_ip="192.168.100.30",
+            user=user,
+        )
+
+        self.assertIn("access_log_id", result)
+        access = self.db.list_access_logs(limit=None)
+        self.assertEqual(len(access), 1)
+        self.assertEqual(access[0]["tipo_usuario"], "Público en general")
+        self.assertEqual(access[0]["nombres"], "Luis")
+        self.assertEqual(access[0]["universidad_externa"], "")
+
+        received = self.db.list_received_logins(limit=None)
+        self.assertEqual(
+            {item["action"] for item in received},
+            {"registro_usuario_simulado", "unlock_login_simulado"},
+        )
+        self.assertTrue(
+            all("simulación administrativa" in item["result"] for item in received)
+        )
+
     def test_deleting_configured_kiosk_heartbeats_only_removes_matching_ips(self):
         self.db.record_kiosk_heartbeat(
             client_ip="192.168.100.10", status_code=1, time_string="00:00:01"
