@@ -192,6 +192,9 @@ def export_statistics_pdf(
 
     document.setHtml("".join(html_sections))
 
+    if output_path.exists():
+        output_path.unlink()
+
     writer = QPdfWriter(str(output_path))
     writer.setTitle("Reporte de accesos - DesktopKioskCenter")
     writer.setCreator("DesktopKioskCenter")
@@ -210,5 +213,9 @@ def export_statistics_pdf(
 
     if not output_path.is_file() or output_path.stat().st_size < 5:
         raise OSError("Qt no pudo generar el archivo PDF solicitado.")
+
+    with output_path.open("rb") as pdf_file:
+        if pdf_file.read(5) != b"%PDF-":
+            raise OSError("Qt generó un archivo, pero no tiene una cabecera PDF válida.")
 
     return output_path
