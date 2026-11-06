@@ -351,6 +351,7 @@ class StatisticsTab(QWidget):
         self.total_label.setText(f"Total de accesos: {int(total)}")
         self.export_button.setEnabled(bool(rows))
         self.export_charts_button.setEnabled(bool(rows))
+        self.export_pdf_button.setEnabled(False)
         self.export_pdf_button.setEnabled(bool(rows))
 
     def set_chart_data(
@@ -367,6 +368,9 @@ class StatisticsTab(QWidget):
         zero_access_data = zero_access_data or {}
         zero_universities = zero_access_data.get("universities", [])
         zero_faculties = zero_access_data.get("faculties", [])
+        self.export_pdf_button.setEnabled(bool(
+            self.table.rowCount() or zero_universities or zero_faculties
+        ))
 
         if zero_universities:
             self.zero_universities_label.setText(
