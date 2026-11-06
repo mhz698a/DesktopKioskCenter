@@ -1,7 +1,7 @@
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
-    QAbstractItemView, QComboBox, QHeaderView, QHBoxLayout, QLabel,
-    QPushButton, QSplitter, QTableWidgetItem, QVBoxLayout, QWidget,
+    QAbstractItemView, QHeaderView, QSplitter, QTableWidgetItem,
+    QVBoxLayout, QWidget,
 )
 
 from css.cqtoolbar import cQToolbar
@@ -15,7 +15,6 @@ class InternalStudentsTab(QWidget):
     save_requested = pyqtSignal()
     delete_requested = pyqtSignal()
     revert_requested = pyqtSignal()
-    unlock_for_student_requested = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -23,24 +22,6 @@ class InternalStudentsTab(QWidget):
         toolbar = cQToolbar("Alumnos Internos Registrados", self)
         add_action = toolbar.addAction("Agregar Alumno")
         add_action.triggered.connect(lambda _checked=False: self.add_requested.emit())
-
-        delivery_row = QHBoxLayout()
-        self.delivery_label = QLabel("Equipo a entregar:", self)
-        self.equipment_combo = QComboBox(self)
-        self.equipment_combo.setMinimumWidth(230)
-        self.unlock_for_student_button = QPushButton(
-            "Desbloquear para este usuario", self
-        )
-        self.unlock_for_student_button.setEnabled(False)
-        self.equipment_combo.currentIndexChanged.connect(
-            self._update_unlock_button_state
-        )
-        self.unlock_for_student_button.clicked.connect(
-            lambda _checked=False: self.unlock_for_student_requested.emit()
-        )
-        delivery_row.addWidget(self.delivery_label)
-        delivery_row.addWidget(self.equipment_combo, 1)
-        delivery_row.addWidget(self.unlock_for_student_button)
 
         splitter = QSplitter(Qt.Orientation.Horizontal, self)
         self.table = cQTableW(0, 6, splitter)
@@ -61,40 +42,7 @@ class InternalStudentsTab(QWidget):
         splitter.setStretchFactor(1, 2)
         splitter.setSizes([660, 390])
         layout.addWidget(toolbar)
-        layout.addLayout(delivery_row)
         layout.addWidget(splitter)
-
-    def set_equipment_options(self, kiosks):
-        selected_host = self.equipment_combo.currentData()
-        self.equipment_combo.blockSignals(True)
-        self.equipment_combo.clear()
-        if not kiosks:
-            self.equipment_combo.addItem("No hay equipos registrados", None)
-            self.equipment_combo.setEnabled(False)
-        else:
-            self.equipment_combo.setEnabled(True)
-            self.equipment_combo.addItem("Selecciona un equipo...", None)
-            for kiosk in kiosks:
-                self.equipment_combo.addItem(kiosk.name, kiosk.host)
-            selected_index = self.equipment_combo.findData(selected_host)
-            if selected_index >= 0:
-                self.equipment_combo.setCurrentIndex(selected_index)
-        self.equipment_combo.blockSignals(False)
-        self._update_unlock_button_state()
-
-    def selected_equipment_host(self):
-        value = self.equipment_combo.currentData()
-        return str(value).strip() if value else ""
-
-    def set_student_selected(self, selected):
-        self._student_selected = bool(selected)
-        self._update_unlock_button_state()
-
-    def _update_unlock_button_state(self, *_args):
-        self.unlock_for_student_button.setEnabled(
-            bool(getattr(self, "_student_selected", False))
-            and bool(self.equipment_combo.currentData())
-        )
 
     def _on_selection_changed(self):
         rows = self.table.selectionModel().selectedRows()
