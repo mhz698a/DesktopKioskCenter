@@ -72,7 +72,11 @@ class StatisticsChartDataTests(unittest.TestCase):
         daily, _general, _faculties = build_chart_data(self.rows, "day")
         self.assertEqual(dict(daily), {"02/11": 14, "03/11": 6})
 
-        weekly, _general, _faculties = build_chart_data(self.rows, "week")
+        weekly_rows = [
+            {**row, "period": "2026-11-02"}
+            for row in self.rows
+        ]
+        weekly, _general, _faculties = build_chart_data(weekly_rows, "week")
         self.assertEqual(dict(weekly), {"Sem 02/11": 20})
 
         monthly, _general, _faculties = build_chart_data(self.rows, "month")
