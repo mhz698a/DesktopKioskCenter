@@ -5,7 +5,7 @@ from collections import defaultdict
 from datetime import date
 from pathlib import Path
 
-from PyQt6.QtCore import QPointF, QRectF, QSize, Qt
+from PyQt6.QtCore import QPointF, QRectF, QSize, Qt, QMarginsF
 from PyQt6.QtGui import (
     QColor,
     QFont,
