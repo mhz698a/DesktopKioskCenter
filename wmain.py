@@ -25,7 +25,8 @@ from tabs.statistics.build import StatisticsTab
 class MainWindow(QMainWindow):
     def __init__(self, database: Database | None = None):
         super().__init__()
-        self.setWindowTitle("DesktopKioskCenter")
+        # DesktopKioskCenter
+        self.setWindowTitle("Centro de computo - Panel de control")
         self.resize(1100, 620)
         self._closing = False
 
@@ -51,7 +52,7 @@ class MainWindow(QMainWindow):
         header_layout = QHBoxLayout(header)
         header_layout.setContentsMargins(16, 10, 16, 10)
 
-        self.application_title = QLabel("DesktopKioskCenter", header)
+        self.application_title = QLabel("Centro de computo - Panel de control", header)
         self.application_title.setObjectName("applicationTitle")
 
         right_header = QVBoxLayout()
