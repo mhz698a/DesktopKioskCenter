@@ -1,0 +1,193 @@
+"""Pruebas de agregación para los gráficos de estadísticas."""
+import unittest
+
+from tabs.statistics.report_data import (
+    PUBLIC_GENERAL_LABEL,
+    UAQ_FULL_NAME,
+    build_chart_data,
+    build_zero_access_data,
+    sort_rows_by_university,
+)
+
+
+class StatisticsChartDataTests(unittest.TestCase):
+    def setUp(self):
+        self.rows = [
+            {
+                "period": "2026-11-02",
+                "origin": "UAQ",
+                "source": "Facultad de Informática",
+                "total": 4,
+            },
+            {
+                "period": "2026-11-02",
+                "origin": "UAQ",
+                "source": "Facultad de Artes",
+                "total": 3,
+            },
+            {
+                "period": "2026-11-02",
+                "origin": "UAQ",
+                "source": "Trabajador interno",
+                "total": 2,
+            },
+            {
+                "period": "2026-11-02",
+                "origin": "Universidad",
+                "source": "Universidad X",
+                "total": 5,
+            },
+            {
+                "period": "2026-11-03",
+                "origin": "Público en general",
+                "source": "Público en general",
+                "total": 6,
+            },
+        ]
+
+    def test_general_origin_chart_collapses_all_uaq_faculties(self):
+        _periods, general, _faculties = build_chart_data(self.rows, "day")
+        self.assertEqual(
+            dict(general),
+            {
+                UAQ_FULL_NAME: 9,
+                "Universidad X": 5,
+                PUBLIC_GENERAL_LABEL: 6,
+            },
+        )
+        self.assertNotIn("Facultad de Informática", dict(general))
+        self.assertNotIn("Facultad de Artes", dict(general))
+        self.assertNotIn("UAQ", dict(general))
+
+    def test_faculty_chart_keeps_faculties_separate_and_excludes_workers(self):
+        _periods, _general, faculties = build_chart_data(self.rows, "day")
+        self.assertEqual(
+            dict(faculties),
+            {
+                "Facultad de Informática": 4,
+                "Facultad de Artes": 3,
+            },
+        )
+        self.assertNotIn("Trabajador interno", dict(faculties))
+
+    def test_period_chart_uses_requested_grouping_label(self):
+        daily, _general, _faculties = build_chart_data(self.rows, "day")
+        self.assertEqual(dict(daily), {"02/11": 14, "03/11": 6})
+
+        weekly_rows = [
+            {**row, "period": "2026-11-02"}
+            for row in self.rows
+        ]
+        weekly, _general, _faculties = build_chart_data(weekly_rows, "week")
+        self.assertEqual(dict(weekly), {"Sem 02/11": 20})
+
+        monthly_rows = [
+            {**row, "period": "2026-11"}
+            for row in self.rows
+        ]
+        monthly, _general, _faculties = build_chart_data(monthly_rows, "month")
+        self.assertEqual(dict(monthly), {"11/2026": 20})
+
+
+    def test_zero_access_catalog_is_reported_separately_from_positive_charts(self):
+        rows = [
+            {
+                "period": "2026-11-02",
+                "origin": "Universidad",
+                "source": "Universidad X",
+                "total": 7,
+            },
+            {
+                "period": "2026-11-02",
+                "origin": "UAQ",
+                "source": "Facultad de Informática",
+                "total": 4,
+            },
+        ]
+        catalog = {
+            "universities": ["Universidad X", "Universidad Y"],
+            "faculties": [
+                "Facultad de Informática",
+                "Facultad de Derecho",
+            ],
+        }
+
+        _periods, general, faculties = build_chart_data(rows, "day")
+        zero_access = build_zero_access_data(rows, catalog)
+
+        self.assertEqual(dict(general), {
+            "Universidad X": 7,
+            UAQ_FULL_NAME: 4,
+        })
+        self.assertEqual(dict(faculties), {
+            "Facultad de Informática": 4,
+        })
+        self.assertEqual(zero_access, {
+            "universities": ["Universidad Y"],
+            "faculties": ["Facultad de Derecho"],
+        })
+
+    def test_zero_access_lists_are_empty_when_every_catalog_entry_has_access(self):
+        rows = [
+            {
+                "period": "2026-11-02",
+                "origin": "Universidad",
+                "source": "Universidad X",
+                "total": 1,
+            },
+            {
+                "period": "2026-11-02",
+                "origin": "UAQ",
+                "source": "Facultad de Informática",
+                "total": 2,
+            },
+        ]
+        zero_access = build_zero_access_data(rows, {
+            "universities": ["Universidad X"],
+            "faculties": ["Facultad de Informática"],
+        })
+        self.assertEqual(zero_access, {"universities": [], "faculties": []})
+
+
+    def test_empty_range_lists_every_catalog_entry_as_zero_access(self):
+        zero_access = build_zero_access_data([], {
+            "universities": ["Universidad X", "Universidad Y"],
+            "faculties": ["Facultad A", "Facultad B"],
+        })
+        self.assertEqual(zero_access, {
+            "universities": ["Universidad X", "Universidad Y"],
+            "faculties": ["Facultad A", "Facultad B"],
+        })
+
+
+
+    def test_detail_rows_group_by_university_and_keep_dates_ascending(self):
+        rows = [
+            {"period": "2026-11-03", "origin": "Universidad", "source": "Universidad X", "total": 2},
+            {"period": "2026-11-01", "origin": "Universidad", "source": "Universidad Y", "total": 1},
+            {"period": "2026-11-01", "origin": "Universidad", "source": "Universidad X", "total": 4},
+            {"period": "2026-11-02", "origin": "UAQ", "source": "Facultad A", "total": 3},
+            {"period": "2026-11-01", "origin": "UAQ", "source": "Facultad B", "total": 5},
+        ]
+
+        ordered = sort_rows_by_university(rows)
+
+        self.assertEqual(
+            [(row["source"], row["period"]) for row in ordered],
+            [
+                ("Facultad B", "2026-11-01"),
+                ("Facultad A", "2026-11-02"),
+                ("Universidad X", "2026-11-01"),
+                ("Universidad X", "2026-11-03"),
+                ("Universidad Y", "2026-11-01"),
+            ],
+        )
+
+
+    def test_invalid_grouping_is_rejected(self):
+        with self.assertRaises(ValueError):
+            build_chart_data(self.rows, "year")
+
+
+if __name__ == "__main__":
+    unittest.main()

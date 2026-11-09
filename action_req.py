@@ -136,6 +136,138 @@ class ReceiveIPWorker(QRunnable):
 
 
 
+class BulkReceiveIPWorker(QRunnable):
+    """Envía la IP del servidor a todos los equipos con concurrencia limitada."""
+
+    def __init__(self, kiosks, headers, server_ip, max_workers=8):
+        super().__init__()
+        self.kiosks = list(kiosks)
+        self.headers = dict(headers)
+        self.server_ip = str(server_ip)
+        self.max_workers = max(1, int(max_workers))
+        self.signals = ActionWorkerSignals()
+
+    def _send_one(self, kiosk):
+        try:
+            response = requests.post(
+                f"http://{kiosk.host}:{kiosk.port}/api/kiosk/receive",
+                headers=self.headers,
+                json={"action": "receive", "data": {"server_control_ip": self.server_ip}},
+                timeout=(2, 2),
+            )
+            if 200 <= response.status_code < 300:
+                return kiosk.name, None
+            return kiosk.name, (
+                f"{kiosk.name}: HTTP {response.status_code} ({response.text[:120]})"
+            )
+        except requests.RequestException as exc:
+            return kiosk.name, f"{kiosk.name}: {exc}"
+
+    def run(self):
+        import concurrent.futures
+
+        successes, errors = 0, []
+        try:
+            with concurrent.futures.ThreadPoolExecutor(
+                max_workers=self.max_workers
+            ) as executor:
+                futures = [executor.submit(self._send_one, kiosk) for kiosk in self.kiosks]
+                for future in concurrent.futures.as_completed(futures):
+                    try:
+                        _name, error = future.result()
+                        if error:
+                            errors.append(error)
+                        else:
+                            successes += 1
+                    except Exception as exc:
+                        errors.append(str(exc))
+
+            summary = (
+                f"Envío de IP terminado: {successes} equipo(s) aceptaron la solicitud "
+                f"y {len(errors)} fallaron, de {len(self.kiosks)} equipo(s)."
+            )
+            if errors:
+                details = "\n".join(errors[:8])
+                if len(errors) > 8:
+                    details += f"\n... y {len(errors) - 8} error(es) más."
+                self.signals.error.emit("Resultado del envío de IP", summary + "\n\n" + details)
+            else:
+                self.signals.success.emit("IP enviada", summary)
+        finally:
+            try:
+                self.signals.finished.emit()
+            except RuntimeError:
+                return
+
+
+class AssignedSessionWorkerSignals(QObject):
+    success = pyqtSignal(object, object, str, str)
+    error = pyqtSignal(str, str)
+    finished = pyqtSignal(object)
+
+
+class AssignedSessionWorker(QRunnable):
+    """Inicia una sesión remota para la identidad elegida en DesktopKioskCenter."""
+
+    def __init__(self, kiosk, user_data, base_url, headers):
+        super().__init__()
+        self.kiosk = kiosk
+        self.user_data = dict(user_data)
+        self.base_url = base_url
+        self.headers = dict(headers)
+        self.signals = AssignedSessionWorkerSignals()
+
+    def run(self):
+        try:
+            response = requests.post(
+                f"{self.base_url}/api/kiosk/assigned-session",
+                headers=self.headers,
+                json={
+                    "action": "assign_session",
+                    "data": self.user_data,
+                },
+                timeout=(2, 4),
+            )
+            if response.status_code == 202:
+                self.signals.success.emit(
+                    self.kiosk,
+                    self.user_data,
+                    "Sesión iniciada",
+                    f"El equipo «{self.kiosk.name}» inició sesión a nombre de "
+                    f"«{self.user_data.get('display_name', '')}».",
+                )
+            elif response.status_code == 401:
+                self.signals.error.emit(
+                    "Error de autenticación",
+                    f"El equipo «{self.kiosk.name}» rechazó la solicitud. Revisa el token.",
+                )
+            elif response.status_code == 400:
+                self.signals.error.emit(
+                    "Datos inválidos",
+                    f"El equipo «{self.kiosk.name}» rechazó los datos de asignación: "
+                    f"{response.text[:200]}",
+                )
+            elif response.status_code == 404:
+                self.signals.error.emit(
+                    "Ruta no encontrada",
+                    f"El equipo «{self.kiosk.name}» todavía no ofrece "
+                    "la ruta /api/kiosk/assigned-session.",
+                )
+            else:
+                self.signals.error.emit(
+                    "Error en la petición",
+                    f"HTTP {response.status_code} en «{self.kiosk.name}»:\n"
+                    f"{response.text[:200]}",
+                )
+        except requests.RequestException as exc:
+            self.signals.error.emit(
+                "Error de comunicación",
+                f"No se pudo iniciar la sesión en «{self.kiosk.name}».\n\n{exc}",
+            )
+        finally:
+            self.signals.finished.emit(self)
+
+
 class PCControlWorker(QRunnable):
     """Envía una solicitud autenticada para apagar o reiniciar Windows."""
 

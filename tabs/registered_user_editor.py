@@ -3,7 +3,7 @@ import re
 
 from PyQt6.QtCore import QRegularExpression, pyqtSignal
 from PyQt6.QtGui import QRegularExpressionValidator
-from PyQt6.QtWidgets import QComboBox, QFormLayout, QHBoxLayout, QLineEdit, QPushButton, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QComboBox, QFormLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QVBoxLayout, QWidget
 
 from user_record_dialog import FACULTADES_UAQ, TIPOS_USUARIO, UNIVERSIDADES_QUERETARO
 
@@ -12,6 +12,7 @@ class RegisteredUserEditor(QWidget):
     save_requested = pyqtSignal()
     delete_requested = pyqtSignal()
     revert_requested = pyqtSignal()
+    unlock_for_user_requested = pyqtSignal()
 
     def __init__(self, kind: str, parent=None):
         super().__init__(parent)
@@ -34,6 +35,27 @@ class RegisteredUserEditor(QWidget):
             self.inputs[key] = widget
             form.addRow(label + ":", widget)
         
+        self.assignment_widget = QWidget(self)
+        self.assignment_row = QHBoxLayout(self.assignment_widget)
+        self.assignment_row.setContentsMargins(0, 0, 0, 0)
+        self.equipment_label = QLabel("Equipo a entregar:", self.assignment_widget)
+        self.equipment_combo = QComboBox(self.assignment_widget)
+        self.equipment_combo.setMinimumWidth(150)
+        self.unlock_for_user_button = QPushButton(
+            "Desbloquear para este usuario", self.assignment_widget
+        )
+        self.assignment_row.addWidget(self.equipment_label)
+        self.assignment_row.addWidget(self.equipment_combo, 1)
+        self.assignment_row.addWidget(self.unlock_for_user_button)
+        self._assignment_eligible = False
+        self._equipment_snapshot = None
+        self.equipment_combo.currentIndexChanged.connect(
+            self._update_assignment_button_state
+        )
+        self.unlock_for_user_button.clicked.connect(
+            lambda _checked=False: self.unlock_for_user_requested.emit()
+        )
+
         buttons = QVBoxLayout()
         self.delete_button = QPushButton("Eliminar Usuario", self)
         buttons.addWidget(self.delete_button)
@@ -46,6 +68,7 @@ class RegisteredUserEditor(QWidget):
 
         layout = QVBoxLayout(self)
         layout.addLayout(form)
+        layout.addWidget(self.assignment_widget)
         layout.addLayout(buttons)
         layout.addStretch(1)
         self.delete_button.clicked.connect(lambda _checked=False: self.delete_requested.emit())
@@ -115,6 +138,12 @@ class RegisteredUserEditor(QWidget):
     def set_record(self, record):
         self._original_record = dict(record)
         self.setEnabled(True)
+        self._assignment_eligible = (
+            self.kind == "student"
+            or str(record.get("tipo_usuario", "")).strip() == "Público en general"
+        )
+        self.assignment_widget.setVisible(self._assignment_eligible)
+        self._update_assignment_button_state()
         for key, widget in self.inputs.items():
             value = str(record.get(key, "") or "")
             if isinstance(widget, QComboBox):
@@ -125,8 +154,40 @@ class RegisteredUserEditor(QWidget):
         if self.kind == "external":
             self._on_user_type_changed(self._value(self.inputs["tipo_usuario"]))
 
+    def set_equipment_options(self, kiosks):
+        selected_host = self.equipment_combo.currentData()
+        self.equipment_combo.blockSignals(True)
+        self.equipment_combo.clear()
+        if not kiosks:
+            self.equipment_combo.addItem("No hay equipos registrados", None)
+            self.equipment_combo.setEnabled(False)
+        else:
+            self.equipment_combo.setEnabled(True)
+            self.equipment_combo.addItem("Selecciona un equipo...", None)
+            for kiosk in kiosks:
+                self.equipment_combo.addItem(kiosk.name, kiosk.host)
+            selected_index = self.equipment_combo.findData(selected_host)
+            if selected_index >= 0:
+                self.equipment_combo.setCurrentIndex(selected_index)
+        self.equipment_combo.blockSignals(False)
+        self._update_assignment_button_state()
+
+    def selected_equipment_host(self):
+        value = self.equipment_combo.currentData()
+        return str(value).strip() if value else ""
+
+    def _update_assignment_button_state(self, *_args):
+        self.unlock_for_user_button.setEnabled(
+            self.isEnabled()
+            and self._assignment_eligible
+            and bool(self.equipment_combo.currentData())
+        )
+
     def clear_record(self):
         self._original_record = None
+        self._assignment_eligible = False
+        self.assignment_widget.setVisible(self.kind == "student")
+        self._update_assignment_button_state()
         for widget in self.inputs.values():
             if isinstance(widget, QComboBox):
                 widget.setCurrentIndex(-1)
@@ -135,6 +196,7 @@ class RegisteredUserEditor(QWidget):
         if self.kind == "external":
             self._on_user_type_changed("")
         self.setEnabled(False)
+        self._update_assignment_button_state()
 
     def revert_changes(self):
         if self._original_record is not None:
