@@ -27,7 +27,11 @@ from PyQt6.QtWidgets import (
 
 from css.cQTablewidget import cQTableW
 from css.cqtoolbar import cQToolbar
-from tabs.statistics.charts import BarChartWidget
+from tabs.statistics.charts import BarChartWidget, THEMES
+
+
+# Deshabilita temporalmente la exportación CSV desde un único punto.
+ENABLE_CSV_EXPORT = False
 
 
 class PdfExportOptionsDialog(QDialog):
@@ -191,7 +195,7 @@ class StatisticsTab(QWidget):
         self.export_button = QPushButton("Exportar CSV", self)
         self.export_charts_button = QPushButton("Exportar gráficas PNG", self)
         self.export_pdf_button = QPushButton("Exportar PDF", self)
-        self.export_button.setEnabled(False)
+        self.export_button.setEnabled(ENABLE_CSV_EXPORT)
         self.export_charts_button.setHidden(True)
         self.export_pdf_button.setEnabled(False)
 
@@ -297,6 +301,22 @@ class StatisticsTab(QWidget):
         faculties_layout.addStretch(1)
         faculty_scroll.setWidget(faculties_page)
 
+        # Las zonas vacías y los viewports comparten el fondo oscuro de las
+        # gráficas. Esto solo afecta la interfaz; el PDF se dibuja aparte.
+        chart_background = THEMES["dark"]["background"]
+        scroll_stylesheet = (
+            f"QScrollArea {{ background-color: {chart_background}; border: none; }}"
+        )
+        for scroll_area, page in (
+            (general_scroll, general_page),
+            (faculty_scroll, faculties_page),
+        ):
+            scroll_area.setStyleSheet(scroll_stylesheet)
+            scroll_area.viewport().setStyleSheet(
+                f"background-color: {chart_background};"
+            )
+            page.setStyleSheet(f"background-color: {chart_background};")
+
         self.charts_panel.addTab(faculty_scroll, "Procedencia Facultades")
         self.charts_panel.addTab(general_scroll, "Procedencia General")
 
@@ -358,7 +378,7 @@ class StatisticsTab(QWidget):
                 )
 
         self.total_label.setText(f"Total de accesos: {int(total)}")
-        self.export_button.setEnabled(bool(rows))
+        self.export_button.setEnabled(ENABLE_CSV_EXPORT and bool(rows))
         self.export_charts_button.setEnabled(bool(rows))
         self.export_pdf_button.setEnabled(False)
         self.export_pdf_button.setEnabled(bool(rows))
