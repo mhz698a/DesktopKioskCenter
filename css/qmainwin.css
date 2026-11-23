@@ -261,3 +261,17 @@ QComboBox:disabled {
     color: #999999;
     border: 1px solid #EAEAEA;
 }
+
+
+/* ==========================================================================
+   QCheckBox (Contraste uniforme en Windows 10 y Windows 11)
+   ========================================================================== */
+QCheckBox {
+    color: #ffffff;
+    background-color: #000000;
+}
+
+QCheckBox:disabled {
+    color: #ffffff;
+    background-color: #000000;
+}
