@@ -71,3 +71,21 @@ La API se inicia junto con la interfaz, por defecto en el puerto TCP 7085. El pu
 El token común de los clientes sigue siendo `UAQinformatizacion7085`. Al tratarse de un valor compartido e incluido en los ejecutables, no debe considerarse un secreto fuerte; limita el acceso al puerto del cliente mediante el firewall y una red administrativa autorizada.
 
 La API REST ya se ejecuta junto con la interfaz. El endpoint de inicio de sesión comprueba el registro, pero todavía no verifica contraseñas: el contrato de registro no incluye credenciales. Consulta [docs/API.md](docs/API.md) antes de habilitarla en una red compartida.
+
+
+## Crear el instalador desde GitHub Actions
+
+El flujo **Python checks** compila la aplicación para Windows con PyInstaller,
+genera el instalador con Inno Setup y publica el archivo
+`DesktopKioskCenter-Installer` como artefacto descargable.
+
+- Al abrir una pull request, el flujo se ejecuta automáticamente. En la ejecución
+  de GitHub Actions descarga el artefacto `DesktopKioskCenter-Installer`.
+- Después de integrar los cambios, también se puede iniciar manualmente desde
+  **Actions → Python checks → Run workflow**, seleccionando la rama que se desea
+  compilar.
+- GitHub entrega el artefacto como ZIP. Dentro está
+  `Installer_DesktopKioskCenter.exe`, que es el instalador de Windows.
+
+El artefacto de Actions se conserva durante 14 días. La instalación requiere
+permisos de administrador porque configura el certificado y la regla de firewall.

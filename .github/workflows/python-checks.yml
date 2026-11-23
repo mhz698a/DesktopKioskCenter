@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - feature/user-management-tabs
+  workflow_dispatch:
 
 permissions:
   contents: read
