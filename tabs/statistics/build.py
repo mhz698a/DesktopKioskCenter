@@ -2,7 +2,7 @@
 from pathlib import Path
 
 from PyQt6.QtCore import QDate, Qt, pyqtSignal, QStandardPaths
-from PyQt6.QtGui import QColor, QFont
+from PyQt6.QtGui import QColor, QFont, QPalette
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -301,21 +301,45 @@ class StatisticsTab(QWidget):
         faculties_layout.addStretch(1)
         faculty_scroll.setWidget(faculties_page)
 
-        # Las zonas vacías y los viewports comparten el fondo oscuro de las
-        # gráficas. Esto solo afecta la interfaz; el PDF se dibuja aparte.
-        chart_background = THEMES["dark"]["background"]
-        scroll_stylesheet = (
-            f"QScrollArea {{ background-color: {chart_background}; border: none; }}"
+        # Fuerza la pintura del fondo en todas las capas que intervienen
+        # en las pestañas. Algunos estilos nativos de Windows dejan el
+        # viewport o el panel de QTabWidget con el color de la paleta del SO,
+        # aunque el QScrollArea tenga una hoja de estilo.
+        chart_color = QColor(THEMES["dark"]["background"])
+        chart_background = chart_color.name()
+
+        def apply_chart_surface(widget):
+            widget.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+            widget.setAutoFillBackground(True)
+            palette = widget.palette()
+            palette.setColor(QPalette.ColorRole.Window, chart_color)
+            palette.setColor(QPalette.ColorRole.Base, chart_color)
+            widget.setPalette(palette)
+            widget.setStyleSheet(
+                f"background-color: {chart_background};"
+            )
+
+        apply_chart_surface(self.charts_panel)
+        self.charts_panel.setStyleSheet(
+            "QTabWidget::pane {"
+            f"background-color: {chart_background};"
+            "border: 1px solid #414954;"
+            "}"
         )
+
         for scroll_area, page in (
             (general_scroll, general_page),
             (faculty_scroll, faculties_page),
         ):
-            scroll_area.setStyleSheet(scroll_stylesheet)
-            scroll_area.viewport().setStyleSheet(
+            apply_chart_surface(scroll_area)
+            apply_chart_surface(scroll_area.viewport())
+            apply_chart_surface(page)
+            scroll_area.setStyleSheet(
+                "QScrollArea {"
                 f"background-color: {chart_background};"
+                "border: none;"
+                "}"
             )
-            page.setStyleSheet(f"background-color: {chart_background};")
 
         self.charts_panel.addTab(faculty_scroll, "Procedencia Facultades")
         self.charts_panel.addTab(general_scroll, "Procedencia General")
