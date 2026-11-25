@@ -291,6 +291,9 @@ def create_api_app(database: Database) -> Flask:
         except sqlite3.IntegrityError:
             safe_request_log(email or names, user_type, "registro_externo", "duplicado", DUPLICATE_MESSAGE)
             return response(False, DUPLICATE_MESSAGE, 409)
+        except ValueError as exc:
+            safe_request_log(email or names, user_type, "registro_externo", "validación fallida", str(exc))
+            return response(False, str(exc), 400)
         except sqlite3.Error:
             logger.exception("Falló el registro de un usuario externo.")
             return response(False, "No se pudo completar el registro por un error de almacenamiento.", 500)
