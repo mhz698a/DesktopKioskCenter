@@ -145,8 +145,6 @@ class RegisteredUserEditor(QWidget):
         combo.blockSignals(True)
         combo.clear()
         combo.addItems(self.faculties)
-        if selected and combo.findText(selected) < 0:
-            combo.addItem(selected)
         combo.setCurrentIndex(combo.findText(selected) if selected else -1)
         combo.blockSignals(False)
 
