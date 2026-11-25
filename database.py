@@ -840,6 +840,45 @@ class Database:
             )
             return cursor.rowcount > 0
 
+    def set_external_user_type_requires_university(
+        self, name: str, requires_university: bool
+    ) -> bool:
+        """Actualiza la regla del tipo sin dejar usuarios actuales en estado inválido."""
+        normalized = str(name or "").strip()
+        with self.connection() as connection:
+            row = connection.execute(
+                "SELECT requires_university FROM external_user_types WHERE name = ? COLLATE NOCASE",
+                (normalized,),
+            ).fetchone()
+            if not row:
+                return False
+            required = bool(requires_university)
+            if required and not bool(row["requires_university"]):
+                missing = connection.execute(
+                    """
+                    SELECT 1 FROM external_users
+                    WHERE tipo_usuario = ? COLLATE NOCASE
+                      AND TRIM(universidad) = ''
+                    LIMIT 1
+                    """,
+                    (normalized,),
+                ).fetchone()
+                if missing:
+                    raise ValueError(
+                        "No se puede activar el requisito todavía: asigna primero una universidad "
+                        "a los usuarios registrados con este tipo."
+                    )
+            if not required:
+                connection.execute(
+                    "UPDATE external_users SET universidad = '' WHERE tipo_usuario = ? COLLATE NOCASE",
+                    (normalized,),
+                )
+            cursor = connection.execute(
+                "UPDATE external_user_types SET requires_university = ? WHERE name = ? COLLATE NOCASE",
+                (int(required), normalized),
+            )
+            return cursor.rowcount > 0
+
     def rename_external_user_type(self, old_name: str, new_name: str) -> bool:
         old_value = str(old_name or "").strip()
         new_value = str(new_name or "").strip()
