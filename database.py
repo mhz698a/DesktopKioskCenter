@@ -255,10 +255,123 @@ class Database:
                         WHERE TRIM(email) <> '' AND email = NEW.email COLLATE NOCASE
                     );
                 END;
+
+                CREATE TRIGGER IF NOT EXISTS trg_staff_email_not_in_students_insert
+                BEFORE INSERT ON internal_staff
+                WHEN TRIM(NEW.email) <> ''
+                BEGIN
+                    SELECT RAISE(ABORT, 'email already registered')
+                    WHERE EXISTS (
+                        SELECT 1 FROM internal_students
+                        WHERE TRIM(email) <> '' AND email = NEW.email COLLATE NOCASE
+                    );
+                END;
+
+                CREATE TRIGGER IF NOT EXISTS trg_staff_email_not_in_students_update
+                BEFORE UPDATE OF email ON internal_staff
+                WHEN TRIM(NEW.email) <> ''
+                BEGIN
+                    SELECT RAISE(ABORT, 'email already registered')
+                    WHERE EXISTS (
+                        SELECT 1 FROM internal_students
+                        WHERE TRIM(email) <> '' AND email = NEW.email COLLATE NOCASE
+                    );
+                END;
+
+                CREATE TRIGGER IF NOT EXISTS trg_staff_email_not_in_external_insert
+                BEFORE INSERT ON internal_staff
+                WHEN TRIM(NEW.email) <> ''
+                BEGIN
+                    SELECT RAISE(ABORT, 'email already registered')
+                    WHERE EXISTS (
+                        SELECT 1 FROM external_users
+                        WHERE TRIM(email) <> '' AND email = NEW.email COLLATE NOCASE
+                    );
+                END;
+
+                CREATE TRIGGER IF NOT EXISTS trg_staff_email_not_in_external_update
+                BEFORE UPDATE OF email ON internal_staff
+                WHEN TRIM(NEW.email) <> ''
+                BEGIN
+                    SELECT RAISE(ABORT, 'email already registered')
+                    WHERE EXISTS (
+                        SELECT 1 FROM external_users
+                        WHERE TRIM(email) <> '' AND email = NEW.email COLLATE NOCASE
+                    );
+                END;
+
+                CREATE TRIGGER IF NOT EXISTS trg_students_email_not_in_staff_insert
+                BEFORE INSERT ON internal_students
+                WHEN TRIM(NEW.email) <> ''
+                BEGIN
+                    SELECT RAISE(ABORT, 'email already registered')
+                    WHERE EXISTS (
+                        SELECT 1 FROM internal_staff
+                        WHERE TRIM(email) <> '' AND email = NEW.email COLLATE NOCASE
+                    );
+                END;
+
+                CREATE TRIGGER IF NOT EXISTS trg_students_email_not_in_staff_update
+                BEFORE UPDATE OF email ON internal_students
+                WHEN TRIM(NEW.email) <> ''
+                BEGIN
+                    SELECT RAISE(ABORT, 'email already registered')
+                    WHERE EXISTS (
+                        SELECT 1 FROM internal_staff
+                        WHERE TRIM(email) <> '' AND email = NEW.email COLLATE NOCASE
+                    );
+                END;
+
+                CREATE TRIGGER IF NOT EXISTS trg_external_email_not_in_staff_insert
+                BEFORE INSERT ON external_users
+                WHEN TRIM(NEW.email) <> ''
+                BEGIN
+                    SELECT RAISE(ABORT, 'email already registered')
+                    WHERE EXISTS (
+                        SELECT 1 FROM internal_staff
+                        WHERE TRIM(email) <> '' AND email = NEW.email COLLATE NOCASE
+                    );
+                END;
+
+                CREATE TRIGGER IF NOT EXISTS trg_external_email_not_in_staff_update
+                BEFORE UPDATE OF email ON external_users
+                WHEN TRIM(NEW.email) <> ''
+                BEGIN
+                    SELECT RAISE(ABORT, 'email already registered')
+                    WHERE EXISTS (
+                        SELECT 1 FROM internal_staff
+                        WHERE TRIM(email) <> '' AND email = NEW.email COLLATE NOCASE
+                    );
+                END;
                 """
             )
 
         self._migrate_legacy_json()
+        self._sync_faculty_catalog_from_records()
+
+    def _sync_faculty_catalog_from_records(self) -> None:
+        """Añade al catálogo facultades ya presentes en datos legados o históricos."""
+        with self.connection() as connection:
+            connection.execute(
+                """
+                INSERT OR IGNORE INTO faculties (name)
+                SELECT name
+                FROM (
+                    SELECT TRIM(facultad) AS name
+                    FROM internal_students
+                    WHERE TRIM(facultad) <> ''
+                    UNION
+                    SELECT TRIM(facultad) AS name
+                    FROM internal_staff
+                    WHERE TRIM(facultad) <> ''
+                    UNION
+                    SELECT TRIM(facultad) AS name
+                    FROM access_logs
+                    WHERE TRIM(facultad) <> ''
+                )
+                WHERE TRIM(name) <> ''
+                """
+            )
 
     def _migrate_legacy_json(self) -> None:
         """Importa los JSON usados por versiones anteriores sin eliminarlos.
