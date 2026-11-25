@@ -253,6 +253,37 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(access[0]["expediente"], "12345")
         self.assertEqual(access[0]["tipo_usuario"], "Alumno interno")
 
+
+    def test_manual_staff_assignment_records_employee_number_and_staff_type(self):
+        result = self.db.record_manual_user_session(
+            kiosk_name="PC-Staff",
+            client_ip="192.168.1.44",
+            user={
+                "id": 1,
+                "nombres": "Laura",
+                "apellidos": "Gómez",
+                "email": "laura.staff@example.com",
+                "tipo_usuario": "Administrativo",
+                "facultad": "Facultad de Derecho",
+                "numero_empleado": "556677",
+                "expediente": "556677",
+            },
+        )
+        self.assertGreater(result["registration_log_id"], 0)
+        self.assertGreater(result["unlock_log_id"], 0)
+        self.assertGreater(result["access_log_id"], 0)
+
+        received = self.db.list_received_logins()
+        self.assertEqual(received[0]["action"], "unlock_login_simulado")
+        self.assertEqual(received[0]["identifier"], "556677")
+        self.assertEqual(received[0]["user_type"], "Administrativo")
+        self.assertEqual(received[1]["action"], "registro_personal_simulado")
+
+        access = self.db.list_access_logs()[0]
+        self.assertEqual(access["expediente"], "556677")
+        self.assertEqual(access["tipo_usuario"], "Administrativo")
+        self.assertEqual(access["facultad"], "Facultad de Derecho")
+
     def test_manual_public_general_assignment_records_public_session(self):
         user_id = self.db.add_external_user({
             "nombres": "Luis",
