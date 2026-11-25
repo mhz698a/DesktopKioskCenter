@@ -1227,7 +1227,7 @@ class Database:
     def generate_access_report(
         self, start_date: str, end_date: str, grouping: str = "day"
     ) -> list[dict]:
-        """Agrupa accesos por día, semana (lunes) o mes y por procedencia."""
+        """Agrupa accesos por periodo y procedencia, incluidos docentes y administrativos."""
         try:
             start = date.fromisoformat(str(start_date))
             end = date.fromisoformat(str(end_date))
