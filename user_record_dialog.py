@@ -16,23 +16,7 @@ from PyQt6.QtWidgets import (
 )
 
 from css.cQDialogs import cQMsgBox, cQDlg
-
-
-FACULTADES_UAQ = [
-    "Facultad de Artes",
-    "Facultad de Ciencias Naturales",
-    "Facultad de Ciencias Políticas y Sociales",
-    "Facultad de Contaduría y Administración",
-    "Facultad de Derecho",
-    "Facultad de Enfermería",
-    "Facultad de Filosofía",
-    "Facultad de Informática",
-    "Facultad de Ingeniería",
-    "Facultad de Lenguas y Letras",
-    "Facultad de Medicina",
-    "Facultad de Psicología y Educación",
-    "Facultad de Química",
-]
+from user_catalogs import FACULTY_DEFAULTS, INTERNAL_STAFF_TYPES
 
 UNIVERSIDADES_QUERETARO = [
     "Instituto Tecnológico de Querétaro (ITQ)",
@@ -62,11 +46,15 @@ TIPOS_USUARIO = [
 
 
 class UserRecordDialog(cQDlg):
-    def __init__(self, title, fields, parent=None):
+    def __init__(
+        self, title, fields, parent=None, *, faculties=None, user_type_options=None
+    ):
         super().__init__(parent)
         self.setWindowTitle(title)
         self.setMinimumWidth(520)
         self.fields = fields
+        self.faculties = list(faculties or FACULTY_DEFAULTS)
+        self.user_type_options = list(user_type_options or TIPOS_USUARIO)
         self.inputs = {}
 
         form = QFormLayout()
@@ -97,13 +85,13 @@ class UserRecordDialog(cQDlg):
         """Crea el widget apropiado según el significado del campo."""
         if key == "facultad":
             combo = QComboBox(self)
-            combo.addItems(FACULTADES_UAQ)
+            combo.addItems(self.faculties)
             combo.setCurrentIndex(-1)
             return combo
 
         if key == "tipo_usuario":
             combo = QComboBox(self)
-            combo.addItems(TIPOS_USUARIO)
+            combo.addItems(self.user_type_options)
             combo.setCurrentIndex(-1)
             return combo
 
@@ -128,7 +116,7 @@ class UserRecordDialog(cQDlg):
                 lambda text, field=line_edit: self._format_proper_name(field, text)
             )
 
-        elif key == "expediente":
+        elif key in ("expediente", "numero_empleado"):
             line_edit.setValidator(
                 QRegularExpressionValidator(
                     QRegularExpression(r"^[0-9]*$"),
@@ -223,10 +211,11 @@ class UserRecordDialog(cQDlg):
                     self.inputs[key].setFocus()
                     return
 
-            if key == "expediente" and not re.fullmatch(r"[0-9]+", value):
+            if key in ("expediente", "numero_empleado") and not re.fullmatch(r"[0-9]+", value):
+                label_id = "número de empleado" if key == "numero_empleado" else "expediente"
                 cQMsgBox.warning(
                     self, "Validación",
-                    "El expediente debe contener únicamente números.",
+                    f"El {label_id} debe contener únicamente números.",
                 )
                 self.inputs[key].setFocus()
                 return
