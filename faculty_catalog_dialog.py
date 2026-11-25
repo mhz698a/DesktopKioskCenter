@@ -3,8 +3,7 @@
 import sqlite3
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets (
-
+from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
