@@ -500,6 +500,19 @@ class DatabaseTests(unittest.TestCase):
         self.assertTrue(self.db.delete_faculty("Facultad de Artes y Diseño"))
         self.assertNotIn("Facultad de Artes y Diseño", self.db.list_faculties())
 
+    def test_external_catalog_deletions_persist_after_database_reinitialization(self):
+        type_name = "Trabajador Interno"
+        university_name = "Otra institución externa"
+        self.assertIn(type_name, [item["name"] for item in self.db.list_external_user_types()])
+        self.assertIn(university_name, self.db.list_universities())
+
+        self.assertTrue(self.db.delete_external_user_type(type_name))
+        self.assertTrue(self.db.delete_university(university_name))
+        self.db.initialize()
+
+        self.assertNotIn(type_name, [item["name"] for item in self.db.list_external_user_types()])
+        self.assertNotIn(university_name, self.db.list_universities())
+
     def test_external_user_type_and_university_catalog_crud_updates_history(self):
         self.assertIn(
             {"name": "Estudiante Externo", "requires_university": True},
