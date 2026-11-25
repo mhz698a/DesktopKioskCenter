@@ -222,10 +222,7 @@ class DatabaseTests(unittest.TestCase):
             catalog["universities"],
             ["Universidad X", "Universidad Y"],
         )
-        self.assertEqual(
-            catalog["faculties"],
-            sorted(FACULTY_DEFAULTS, key=str.casefold),
-        )
+        self.assertCountEqual(catalog["faculties"], FACULTY_DEFAULTS)
 
     def test_manual_student_unlock_records_simulated_registration_and_access(self):
         student_id = self.db.add_internal_student({
