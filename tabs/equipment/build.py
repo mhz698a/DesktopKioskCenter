@@ -50,7 +50,7 @@ class EquipmentTab(QWidget):
         add_multiple_action.triggered.connect(lambda _checked=False: self.add_multiple_requested.emit())
 
         toolbar.addSeparator()
-        send_ip_all_action = toolbar.addAction("Configurar IP central en todas las PCs")
+        send_ip_all_action = toolbar.addAction("Enviar IP del servidor central a todas las PCs")
         send_ip_all_action.setToolTip(
             "Envía la IP de este servidor central a todos los kioscos registrados para que puedan conectarse con DesktopKioskCenter y reportar su estado y accesos. No cambia la IP de red de las PCs."
         )
