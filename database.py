@@ -1316,6 +1316,10 @@ class Database:
                 """
                 SELECT name
                 FROM (
+                    SELECT TRIM(name) AS name
+                    FROM faculties
+                    WHERE TRIM(name) <> ''
+                    UNION
                     SELECT TRIM(facultad) AS name
                     FROM internal_students
                     WHERE TRIM(facultad) <> ''
