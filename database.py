@@ -1608,6 +1608,7 @@ class Database:
                     {period_expression} AS period,
                     CASE
                         WHEN lower(trim(tipo_usuario)) IN ('estudiante externo', 'estudiante')
+                             OR TRIM(access_logs.universidad_externa) <> ''
                              OR EXISTS (
                                  SELECT 1 FROM external_user_types eut
                                  WHERE eut.name = access_logs.tipo_usuario COLLATE NOCASE
@@ -1623,6 +1624,7 @@ class Database:
                     END AS origin,
                     CASE
                         WHEN lower(trim(tipo_usuario)) IN ('estudiante externo', 'estudiante')
+                             OR TRIM(access_logs.universidad_externa) <> ''
                              OR EXISTS (
                                  SELECT 1 FROM external_user_types eut
                                  WHERE eut.name = access_logs.tipo_usuario COLLATE NOCASE
@@ -1664,6 +1666,7 @@ class Database:
                     FROM external_users
                     WHERE (
                         lower(trim(tipo_usuario)) IN ('estudiante externo', 'estudiante')
+                        OR TRIM(external_users.universidad) <> ''
                         OR EXISTS (
                             SELECT 1 FROM external_user_types eut
                             WHERE eut.name = external_users.tipo_usuario COLLATE NOCASE
@@ -1676,6 +1679,7 @@ class Database:
                     FROM access_logs
                     WHERE (
                         lower(trim(tipo_usuario)) IN ('estudiante externo', 'estudiante')
+                        OR TRIM(access_logs.universidad_externa) <> ''
                         OR EXISTS (
                             SELECT 1 FROM external_user_types eut
                             WHERE eut.name = access_logs.tipo_usuario COLLATE NOCASE
