@@ -18,6 +18,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from const import BASE_DIR, DATABASE_FILE
+from user_catalogs import FACULTY_DEFAULTS, INTERNAL_STAFF_TYPES
 
 
 logger = logging.getLogger(__name__)
@@ -75,6 +76,22 @@ class Database:
                     tipo_usuario TEXT NOT NULL,
                     universidad TEXT NOT NULL DEFAULT '',
                     created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+                );
+
+                CREATE TABLE IF NOT EXISTS internal_staff (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    nombres TEXT NOT NULL,
+                    apellidos TEXT NOT NULL,
+                    facultad TEXT NOT NULL,
+                    numero_empleado TEXT NOT NULL UNIQUE,
+                    email TEXT NOT NULL DEFAULT '',
+                    tipo_usuario TEXT NOT NULL CHECK (tipo_usuario IN ('Docente', 'Administrativo')),
+                    created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+                );
+
+                CREATE TABLE IF NOT EXISTS faculties (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE COLLATE NOCASE
                 );
 
                 CREATE TABLE IF NOT EXISTS kiosk_status_codes (
@@ -143,7 +160,12 @@ class Database:
                 ),
             )
 
-            # Migraciones incrementales de correo electrónico en ambas clases de usuarios.
+            connection.executemany(
+                "INSERT OR IGNORE INTO faculties (name) VALUES (?)",
+                ((faculty,) for faculty in FACULTY_DEFAULTS),
+            )
+
+            # Migraciones incrementales de correo electrónico en las categorías de usuarios.
             internal_columns = {
                 row["name"]
                 for row in connection.execute("PRAGMA table_info(internal_students)")
@@ -151,6 +173,15 @@ class Database:
             if "email" not in internal_columns:
                 connection.execute(
                     "ALTER TABLE internal_students ADD COLUMN email TEXT NOT NULL DEFAULT ''"
+                )
+
+            staff_columns = {
+                row["name"]
+                for row in connection.execute("PRAGMA table_info(internal_staff)")
+            }
+            if "email" not in staff_columns:
+                connection.execute(
+                    "ALTER TABLE internal_staff ADD COLUMN email TEXT NOT NULL DEFAULT ''"
                 )
 
             external_columns = {
@@ -165,6 +196,11 @@ class Database:
             connection.execute(
                 """CREATE UNIQUE INDEX IF NOT EXISTS idx_internal_students_email_unique
                    ON internal_students(email COLLATE NOCASE)
+                   WHERE TRIM(email) <> ''"""
+            )
+            connection.execute(
+                """CREATE UNIQUE INDEX IF NOT EXISTS idx_internal_staff_email_unique
+                   ON internal_staff(email COLLATE NOCASE)
                    WHERE TRIM(email) <> ''"""
             )
             connection.execute(
@@ -444,6 +480,86 @@ class Database:
             )
             return int(cursor.rowcount)
 
+    def list_faculties(self) -> list[str]:
+        """Devuelve el catálogo compartido de facultades en orden alfabético."""
+        with self.connection() as connection:
+            rows = connection.execute(
+                "SELECT name FROM faculties ORDER BY name COLLATE NOCASE"
+            ).fetchall()
+            return [str(row["name"]) for row in rows]
+
+    def add_faculty(self, name: str) -> bool:
+        """Agrega una facultad al catálogo común."""
+        normalized = str(name or "").strip()
+        if not normalized:
+            raise ValueError("El nombre de la facultad no puede estar vacío.")
+        with self.connection() as connection:
+            cursor = connection.execute(
+                "INSERT OR IGNORE INTO faculties (name) VALUES (?)",
+                (normalized,),
+            )
+            return cursor.rowcount > 0
+
+    def rename_faculty(self, old_name: str, new_name: str) -> bool:
+        """Renombra una facultad y actualiza sus registros e historial asociado."""
+        old_value = str(old_name or "").strip()
+        new_value = str(new_name or "").strip()
+        if not old_value or not new_value:
+            raise ValueError("Los nombres de facultad no pueden estar vacíos.")
+        if old_value.casefold() == new_value.casefold():
+            return False
+        with self.connection() as connection:
+            if connection.execute(
+                "SELECT 1 FROM faculties WHERE name = ? COLLATE NOCASE",
+                (new_value,),
+            ).fetchone():
+                raise sqlite3.IntegrityError("faculty already exists")
+            cursor = connection.execute(
+                "UPDATE faculties SET name = ? WHERE name = ? COLLATE NOCASE",
+                (new_value, old_value),
+            )
+            if not cursor.rowcount:
+                return False
+            connection.execute(
+                "UPDATE internal_students SET facultad = ? WHERE facultad = ? COLLATE NOCASE",
+                (new_value, old_value),
+            )
+            connection.execute(
+                "UPDATE internal_staff SET facultad = ? WHERE facultad = ? COLLATE NOCASE",
+                (new_value, old_value),
+            )
+            connection.execute(
+                "UPDATE access_logs SET facultad = ? WHERE facultad = ? COLLATE NOCASE",
+                (new_value, old_value),
+            )
+            return True
+
+    def delete_faculty(self, name: str) -> bool:
+        """Elimina una facultad solo si ningún usuario registrado la utiliza."""
+        normalized = str(name or "").strip()
+        if not normalized:
+            return False
+        with self.connection() as connection:
+            used = connection.execute(
+                """
+                SELECT 1 FROM internal_students WHERE facultad = ? COLLATE NOCASE
+                UNION ALL
+                SELECT 1 FROM internal_staff WHERE facultad = ? COLLATE NOCASE
+                LIMIT 1
+                """,
+                (normalized, normalized),
+            ).fetchone()
+            if used:
+                raise ValueError(
+                    "No se puede eliminar esta facultad porque está asignada a usuarios registrados. "
+                    "Reasigna primero esos registros."
+                )
+            cursor = connection.execute(
+                "DELETE FROM faculties WHERE name = ? COLLATE NOCASE",
+                (normalized,),
+            )
+            return cursor.rowcount > 0
+
     def list_internal_students(self) -> list[dict]:
         """Devuelve los alumnos internos en orden de alta."""
         with self.connection() as connection:
@@ -462,6 +578,9 @@ class Database:
         with self.connection() as connection:
             if self._email_in_use(connection, email):
                 raise sqlite3.IntegrityError("email already registered")
+            expediente = str(record.get("expediente", "") or "").strip()
+            if not expediente or self._internal_identifier_in_use(connection, expediente):
+                raise sqlite3.IntegrityError("internal identifier already registered")
             cursor = connection.execute(
                 """
                 INSERT INTO internal_students
@@ -486,6 +605,11 @@ class Database:
                 connection, email, exclude_internal_student_id=int(student_id)
             ):
                 raise sqlite3.IntegrityError("email already registered")
+            expediente = str(record.get("expediente", "") or "").strip()
+            if not expediente or self._internal_identifier_in_use(
+                connection, expediente, exclude_student_id=int(student_id)
+            ):
+                raise sqlite3.IntegrityError("internal identifier already registered")
             cursor = connection.execute(
                 """UPDATE internal_students
                    SET nombres = ?, apellidos = ?, facultad = ?, expediente = ?, email = ?
@@ -501,6 +625,95 @@ class Database:
         with self.connection() as connection:
             cursor = connection.execute(
                 "DELETE FROM internal_students WHERE id = ?", (int(student_id),)
+            )
+            return cursor.rowcount > 0
+
+    def list_internal_staff(self) -> list[dict]:
+        """Lista docentes y administrativos; expediente se expone como alias de auditoría."""
+        with self.connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT id, nombres, apellidos, email, facultad, numero_empleado,
+                       numero_empleado AS expediente, tipo_usuario, created_at
+                FROM internal_staff
+                ORDER BY tipo_usuario, apellidos COLLATE NOCASE, nombres COLLATE NOCASE
+                """
+            ).fetchall()
+            return self._as_dicts(rows)
+
+    def add_internal_staff(self, record: dict) -> int:
+        """Registra un docente o administrativo con correo y número de empleado únicos."""
+        email = self._validate_email(record.get("email", ""))
+        employee_number = str(record.get("numero_empleado", "") or "").strip()
+        user_type = str(record.get("tipo_usuario", "") or "").strip()
+        if user_type not in INTERNAL_STAFF_TYPES:
+            raise ValueError("El tipo de personal debe ser Docente o Administrativo.")
+        if not employee_number.isdigit():
+            raise ValueError("El número de empleado debe contener únicamente números.")
+        with self.connection() as connection:
+            if self._email_in_use(connection, email):
+                raise sqlite3.IntegrityError("email already registered")
+            if self._internal_identifier_in_use(connection, employee_number):
+                raise sqlite3.IntegrityError("internal identifier already registered")
+            cursor = connection.execute(
+                """
+                INSERT INTO internal_staff
+                    (nombres, apellidos, email, tipo_usuario, facultad, numero_empleado)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    str(record.get("nombres", "")).strip(),
+                    str(record.get("apellidos", "")).strip(),
+                    email,
+                    user_type,
+                    str(record.get("facultad", "")).strip(),
+                    employee_number,
+                ),
+            )
+            return int(cursor.lastrowid)
+
+    def update_internal_staff(self, staff_id: int, record: dict) -> bool:
+        """Actualiza un registro de personal y conserva unicidad global."""
+        email = self._validate_email(record.get("email", ""))
+        employee_number = str(record.get("numero_empleado", "") or "").strip()
+        user_type = str(record.get("tipo_usuario", "") or "").strip()
+        if user_type not in INTERNAL_STAFF_TYPES:
+            raise ValueError("El tipo de personal debe ser Docente o Administrativo.")
+        if not employee_number.isdigit():
+            raise ValueError("El número de empleado debe contener únicamente números.")
+        with self.connection() as connection:
+            if self._email_in_use(
+                connection, email, exclude_internal_staff_id=int(staff_id)
+            ):
+                raise sqlite3.IntegrityError("email already registered")
+            if self._internal_identifier_in_use(
+                connection, employee_number, exclude_staff_id=int(staff_id)
+            ):
+                raise sqlite3.IntegrityError("internal identifier already registered")
+            cursor = connection.execute(
+                """
+                UPDATE internal_staff
+                SET nombres = ?, apellidos = ?, email = ?, tipo_usuario = ?,
+                    facultad = ?, numero_empleado = ?
+                WHERE id = ?
+                """,
+                (
+                    str(record.get("nombres", "")).strip(),
+                    str(record.get("apellidos", "")).strip(),
+                    email,
+                    user_type,
+                    str(record.get("facultad", "")).strip(),
+                    employee_number,
+                    int(staff_id),
+                ),
+            )
+            return cursor.rowcount > 0
+
+    def delete_internal_staff(self, staff_id: int) -> bool:
+        """Elimina el registro de personal seleccionado."""
+        with self.connection() as connection:
+            cursor = connection.execute(
+                "DELETE FROM internal_staff WHERE id = ?", (int(staff_id),)
             )
             return cursor.rowcount > 0
 
@@ -542,28 +755,48 @@ class Database:
         email: str,
         *,
         exclude_internal_student_id: int | None = None,
+        exclude_internal_staff_id: int | None = None,
         exclude_external_user_id: int | None = None,
     ) -> bool:
-        internal_sql = (
-            "SELECT 1 FROM internal_students "
-            "WHERE TRIM(email) <> '' AND email = ? COLLATE NOCASE"
-        )
-        internal_params: tuple = (email,)
-        if exclude_internal_student_id is not None:
-            internal_sql += " AND id <> ?"
-            internal_params += (int(exclude_internal_student_id),)
-        if connection.execute(internal_sql + " LIMIT 1", internal_params).fetchone():
+        for table, excluded_id in (
+            ("internal_students", exclude_internal_student_id),
+            ("internal_staff", exclude_internal_staff_id),
+            ("external_users", exclude_external_user_id),
+        ):
+            sql = (
+                f"SELECT 1 FROM {table} "
+                "WHERE TRIM(email) <> '' AND email = ? COLLATE NOCASE"
+            )
+            params: tuple = (email,)
+            if excluded_id is not None:
+                sql += " AND id <> ?"
+                params += (int(excluded_id),)
+            if connection.execute(sql + " LIMIT 1", params).fetchone():
+                return True
+        return False
+
+    @staticmethod
+    def _internal_identifier_in_use(
+        connection,
+        identifier: str,
+        *,
+        exclude_student_id: int | None = None,
+        exclude_staff_id: int | None = None,
+    ) -> bool:
+        student_sql = "SELECT 1 FROM internal_students WHERE expediente = ?"
+        student_params: tuple = (identifier,)
+        if exclude_student_id is not None:
+            student_sql += " AND id <> ?"
+            student_params += (int(exclude_student_id),)
+        if connection.execute(student_sql + " LIMIT 1", student_params).fetchone():
             return True
 
-        external_sql = (
-            "SELECT 1 FROM external_users "
-            "WHERE TRIM(email) <> '' AND email = ? COLLATE NOCASE"
-        )
-        external_params: tuple = (email,)
-        if exclude_external_user_id is not None:
-            external_sql += " AND id <> ?"
-            external_params += (int(exclude_external_user_id),)
-        return connection.execute(external_sql + " LIMIT 1", external_params).fetchone() is not None
+        staff_sql = "SELECT 1 FROM internal_staff WHERE numero_empleado = ?"
+        staff_params: tuple = (identifier,)
+        if exclude_staff_id is not None:
+            staff_sql += " AND id <> ?"
+            staff_params += (int(exclude_staff_id),)
+        return connection.execute(staff_sql + " LIMIT 1", staff_params).fetchone() is not None
 
         """Valida que todo usuario externo tenga un email válido."""
         email = str(email or "").strip()
@@ -629,15 +862,11 @@ class Database:
             return cursor.rowcount > 0
 
     def find_registered_user(self, identifier: str) -> dict | None:
-        """Busca por email en todas las categorías y luego por expediente interno.
-
-        Nunca resuelve identidades por nombres. El contrato actual solo comprueba
-        que el usuario está registrado; no valida contraseñas porque los payloads
-        de registro no definen credenciales.
-        """
-        identifier = identifier.strip()
+        """Busca por email y por identificador institucional de usuarios internos."""
+        identifier = str(identifier or "").strip()
+        if not identifier:
+            return None
         with self.connection() as connection:
-            # Buscar por correo primero para evitar depender de nombres coincidentes.
             student_by_email = connection.execute(
                 """SELECT id, nombres, apellidos, facultad, expediente,
                           email, '' AS universidad, 'Alumno interno' AS tipo_usuario
@@ -647,6 +876,17 @@ class Database:
             ).fetchone()
             if student_by_email:
                 return dict(student_by_email)
+
+            staff_by_email = connection.execute(
+                """SELECT id, nombres, apellidos, facultad,
+                          numero_empleado AS expediente, numero_empleado,
+                          email, '' AS universidad, tipo_usuario
+                   FROM internal_staff
+                   WHERE email <> '' AND email = ? COLLATE NOCASE""",
+                (identifier,),
+            ).fetchone()
+            if staff_by_email:
+                return dict(staff_by_email)
 
             external = connection.execute(
                 """SELECT id, nombres, apellidos, '' AS facultad, '' AS expediente,
@@ -658,7 +898,16 @@ class Database:
             if external:
                 return dict(external)
 
-            # El expediente sigue siendo un identificador alternativo para alumnos.
+            staff_by_number = connection.execute(
+                """SELECT id, nombres, apellidos, facultad,
+                          numero_empleado AS expediente, numero_empleado,
+                          email, '' AS universidad, tipo_usuario
+                   FROM internal_staff WHERE numero_empleado = ?""",
+                (identifier,),
+            ).fetchone()
+            if staff_by_number:
+                return dict(staff_by_number)
+
             student_by_expediente = connection.execute(
                 """SELECT id, nombres, apellidos, facultad, expediente,
                           email, '' AS universidad, 'Alumno interno' AS tipo_usuario
@@ -861,7 +1110,7 @@ class Database:
                         WHEN lower(trim(tipo_usuario)) IN
                              ('público en general', 'publico en general', 'publico_general')
                             THEN 'Público en general'
-                        WHEN lower(trim(tipo_usuario)) IN ('alumno interno', 'trabajador interno')
+                        WHEN lower(trim(tipo_usuario)) IN ('alumno interno', 'trabajador interno', 'docente', 'administrativo')
                             THEN 'UAQ'
                         ELSE COALESCE(NULLIF(trim(tipo_usuario), ''), 'Sin clasificar')
                     END AS origin,
@@ -872,7 +1121,7 @@ class Database:
                         WHEN lower(trim(tipo_usuario)) IN
                              ('público en general', 'publico en general', 'publico_general')
                             THEN 'Público en general'
-                        WHEN lower(trim(tipo_usuario)) = 'alumno interno'
+                        WHEN lower(trim(tipo_usuario)) IN ('alumno interno', 'docente', 'administrativo')
                             THEN COALESCE(NULLIF(trim(facultad), ''), 'Facultad no especificada')
                         WHEN lower(trim(tipo_usuario)) = 'trabajador interno'
                             THEN 'Trabajador interno'
@@ -923,8 +1172,13 @@ class Database:
                     WHERE TRIM(facultad) <> ''
                     UNION
                     SELECT TRIM(facultad) AS name
+                    FROM internal_staff
+                    WHERE TRIM(facultad) <> ''
+                    UNION
+                    SELECT TRIM(facultad) AS name
                     FROM access_logs
-                    WHERE lower(trim(tipo_usuario)) = 'alumno interno'
+                    WHERE lower(trim(tipo_usuario)) IN
+                          ('alumno interno', 'docente', 'administrativo')
                       AND TRIM(facultad) <> ''
                 )
                 ORDER BY name COLLATE NOCASE
