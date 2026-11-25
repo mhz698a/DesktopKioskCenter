@@ -4,7 +4,7 @@ import platform
 
 import pywinstyles
 from PyQt6.QtCore import QDate, QTime, QTimer, QThreadPool, Qt
-from PyQt6.QtWidgets import QDialog, QHBoxLayout, QLabel, QMainWindow, QTabWidget, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QHBoxLayout, QLabel, QMainWindow, QTabWidget, QVBoxLayout, QWidget
 
 from css.apply_qss import apply_css_sheet
 from database import Database
