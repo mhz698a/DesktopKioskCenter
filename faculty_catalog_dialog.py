@@ -55,7 +55,7 @@ class FacultyCatalogDialog(cQDlg):
         self.rename_button.clicked.connect(self.rename_faculty)
         self.delete_button.clicked.connect(self.delete_faculty)
         self.close_button.clicked.connect(self.accept)
-        self.faculty_list.currentTextChanged.connect(self._load_selected_name)
+        self.faculty_list.currentItemChanged.connect(self._load_selected_name)
         self.refresh()
 
     def refresh(self, selected_name=None):
@@ -72,8 +72,8 @@ class FacultyCatalogDialog(cQDlg):
         if not self.faculty_list.currentItem():
             self.name_input.clear()
 
-    def _load_selected_name(self, name):
-        self.name_input.setText(name)
+    def _load_selected_name(self, current, _previous=None):
+        self.name_input.setText(current.text() if current is not None else "")
 
     def add_faculty(self):
         name = self.name_input.text().strip()
