@@ -78,6 +78,14 @@ def create_api_app(database: Database) -> Flask:
         """Publica el catálogo compartido para los formularios de los kioscos."""
         return jsonify({"faculties": database.list_faculties()}), 200
 
+    @app.get("/api/v1/catalog/external-users")
+    def external_user_catalog():
+        """Publica tipos externos y universidades configurados en el Centro."""
+        return jsonify({
+            "user_types": database.list_external_user_types(),
+            "universities": database.list_universities(),
+        }), 200
+
     @app.post("/api/v1/auth-client-pc/login")
     def login():
         data, error = parse_payload("unlock_login")
@@ -227,7 +235,7 @@ def create_api_app(database: Database) -> Flask:
         names = str(data.get("nombres", "") or "").strip()
         surnames = str(data.get("apellidos", "") or "").strip()
         email = str(data.get("email", "") or "").strip()
-        raw_type = str(data.get("tipo-usuario", data.get("tipo_usuario", "")) or "").strip().casefold()
+        raw_type = str(data.get("tipo-usuario", data.get("tipo_usuario", "")) or "").strip()
         university = str(data.get("universidad-ext", data.get("universidad", "")) or "").strip()
 
         if (
@@ -241,22 +249,39 @@ def create_api_app(database: Database) -> Flask:
         if not EMAIL_RE.fullmatch(email):
             return response(False, "Ingresa una dirección de email válida.", 400)
 
-        if raw_type in ("estudiante", "estudiante externo", "estudiante_externo"):
-            user_type = "Estudiante Externo"
-        elif raw_type in ("público en general", "publico en general", "publico_general", "publico", "general"):
-            user_type = "Público en general"
-        elif raw_type in ("trabajador interno", "trabajador_interno", "trabajador"):
-            user_type = "Trabajador Interno"
-        else:
-            return response(False, "El campo «tipo-usuario» no contiene un tipo reconocido.", 400)
+        # Se conservan alias antiguos por compatibilidad; los nuevos tipos llegan
+        # desde el catálogo y se identifican por su nombre completo.
+        legacy_aliases = {
+            "estudiante": "Estudiante Externo",
+            "estudiante externo": "Estudiante Externo",
+            "estudiante_externo": "Estudiante Externo",
+            "público en general": "Público en general",
+            "publico en general": "Público en general",
+            "publico_general": "Público en general",
+            "publico": "Público en general",
+            "general": "Público en general",
+            "trabajador interno": "Trabajador Interno",
+            "trabajador_interno": "Trabajador Interno",
+            "trabajador": "Trabajador Interno",
+        }
+        canonical_candidate = legacy_aliases.get(raw_type.casefold(), raw_type)
+        available_types = {
+            str(item["name"]).casefold(): item
+            for item in database.list_external_user_types()
+        }
+        type_info = available_types.get(canonical_candidate.casefold())
+        if type_info is None:
+            return response(False, "El tipo de usuario seleccionado ya no existe en el catálogo del Centro.", 400)
 
-        if user_type == "Estudiante Externo" and not university:
-            return response(False, "El campo «universidad-ext» es obligatorio para Estudiante Externo.", 400)
+        user_type = str(type_info["name"])
+        requires_university = bool(type_info["requires_university"])
+        if requires_university and not university:
+            return response(False, "El tipo de usuario seleccionado requiere una universidad.", 400)
 
         record = {
             "nombres": names, "apellidos": surnames, "email": email,
             "tipo_usuario": user_type,
-            "universidad": university if user_type == "Estudiante Externo" else "",
+            "universidad": university if requires_university else "",
         }
         if database.external_user_exists(record):
             safe_request_log(email or names, user_type, "registro_externo", "duplicado", DUPLICATE_MESSAGE)
