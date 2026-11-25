@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 from database import Database
-from user_catalogs import FACULTY_DEFAULTS
+from user_catalogs import FACULTY_DEFAULTS, UNIVERSITY_DEFAULTS
 
 
 class DatabaseTests(unittest.TestCase):
@@ -218,9 +218,9 @@ class DatabaseTests(unittest.TestCase):
         )
 
         catalog = self.db.get_access_report_catalog()
-        self.assertEqual(
+        self.assertCountEqual(
             catalog["universities"],
-            ["Universidad X", "Universidad Y"],
+            (*UNIVERSITY_DEFAULTS, "Universidad X", "Universidad Y"),
         )
         self.assertCountEqual(catalog["faculties"], FACULTY_DEFAULTS)
 
@@ -499,6 +499,92 @@ class DatabaseTests(unittest.TestCase):
         self.assertTrue(self.db.delete_internal_staff(staff_id))
         self.assertTrue(self.db.delete_faculty("Facultad de Artes y Diseño"))
         self.assertNotIn("Facultad de Artes y Diseño", self.db.list_faculties())
+
+    def test_external_user_type_and_university_catalog_crud_updates_history(self):
+        self.assertIn(
+            {"name": "Estudiante Externo", "requires_university": True},
+            self.db.list_external_user_types(),
+        )
+        self.assertTrue(
+            self.db.add_external_user_type("Proveedor visitante", True)
+        )
+        self.assertTrue(self.db.add_university("Universidad de Prueba"))
+
+        user_id = self.db.add_external_user({
+            "nombres": "Paula",
+            "apellidos": "Ejemplo",
+            "email": "paula.proveedor@example.com",
+            "tipo_usuario": "Proveedor visitante",
+            "universidad": "Universidad de Prueba",
+        })
+        self.db.record_access_log(
+            nombres="Paula",
+            apellidos="Ejemplo",
+            universidad_externa="Universidad de Prueba",
+            tipo_usuario="Proveedor visitante",
+            accessed_at="2026-11-22 12:00:00",
+        )
+        self.db.record_received_login(
+            kiosk_name="PC demo",
+            client_ip="192.0.2.20",
+            identifier="paula.proveedor@example.com",
+            user_type="Proveedor visitante",
+            action="registro_externo",
+            result="registrado",
+            message="Prueba",
+        )
+
+        self.assertTrue(
+            self.db.rename_external_user_type("Proveedor visitante", "Proveedor externo")
+        )
+        self.assertTrue(
+            self.db.rename_university("Universidad de Prueba", "Universidad de Prueba Renombrada")
+        )
+        updated = next(
+            item for item in self.db.list_external_users() if item["id"] == user_id
+        )
+        self.assertEqual(updated["tipo_usuario"], "Proveedor externo")
+        self.assertEqual(updated["universidad"], "Universidad de Prueba Renombrada")
+        self.assertEqual(
+            self.db.list_access_logs()[0]["universidad"],
+            "Universidad de Prueba Renombrada",
+        )
+        self.assertEqual(
+            self.db.list_received_logins()[0]["user_type"],
+            "Proveedor externo",
+        )
+        report = self.db.generate_access_report("2026-11-22", "2026-11-22", "day")
+        self.assertIn(
+            ("Universidad", "Universidad de Prueba Renombrada", 1),
+            {(row["origin"], row["source"], row["total"]) for row in report},
+        )
+        self.assertIn(
+            "Universidad de Prueba Renombrada",
+            self.db.get_access_report_catalog()["universities"],
+        )
+
+        with self.assertRaises(ValueError):
+            self.db.delete_external_user_type("Proveedor externo")
+        with self.assertRaises(ValueError):
+            self.db.delete_university("Universidad de Prueba Renombrada")
+
+    def test_external_types_without_university_are_saved_without_university(self):
+        self.db.add_external_user_type("Visitante sin afiliación", False)
+        user_id = self.db.add_external_user({
+            "nombres": "Elena",
+            "apellidos": "Prueba",
+            "email": "elena.visitante@example.com",
+            "tipo_usuario": "Visitante sin afiliación",
+            "universidad": "No debe guardarse",
+        })
+        user = next(
+            item for item in self.db.list_external_users() if item["id"] == user_id
+        )
+        self.assertEqual(user["universidad"], "")
+        with self.assertRaises(ValueError):
+            self.db.set_external_user_type_requires_university(
+                "Visitante sin afiliación", True
+            )
 
     def test_statistics_catalog_includes_faculties_without_registered_users(self):
         self.db.add_faculty("Facultad de Arquitectura")
