@@ -546,7 +546,7 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(updated["tipo_usuario"], "Proveedor externo")
         self.assertEqual(updated["universidad"], "Universidad de Prueba Renombrada")
         self.assertEqual(
-            self.db.list_access_logs()[0]["universidad"],
+            self.db.list_access_logs()[0]["universidad_externa"],
             "Universidad de Prueba Renombrada",
         )
         self.assertEqual(
