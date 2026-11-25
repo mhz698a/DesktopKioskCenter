@@ -468,7 +468,7 @@ class DatabaseTests(unittest.TestCase):
             "nombres": "Luis", "apellidos": "García",
             "email": "luis.faculty@example.com",
             "tipo_usuario": "Administrativo",
-            "facultad": "Facultad de Artes", "numero_empleado": "F002",
+            "facultad": "Facultad de Artes", "numero_empleado": "556688",
         })
         self.db.record_access_log(
             nombres="Ana",
