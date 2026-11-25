@@ -50,7 +50,11 @@ class EquipmentTab(QWidget):
         add_multiple_action.triggered.connect(lambda _checked=False: self.add_multiple_requested.emit())
 
         toolbar.addSeparator()
-        send_ip_all_action = toolbar.addAction("Enviar IP a todas las PCs")
+        send_ip_all_action = toolbar.addAction("Configurar IP central en todas las PCs")
+        send_ip_all_action.setToolTip(
+            "Envía la IP de este servidor central a todos los kioscos registrados para que puedan conectarse con DesktopKioskCenter y reportar su estado y accesos. No cambia la IP de red de las PCs."
+        )
+        send_ip_all_action.setStatusTip(send_ip_all_action.toolTip())
         send_ip_all_action.triggered.connect(
             lambda _checked=False: self.send_ip_all_requested.emit()
         )
@@ -128,7 +132,10 @@ class EquipmentTab(QWidget):
         editor_layout.addLayout(power_row)
 
         send_ip_row = QHBoxLayout()
-        self.send_ip_button = QPushButton("Enviar IP de este servidor al PC cliente seleccionado", self.editor_panel)
+        self.send_ip_button = QPushButton("Configurar IP central en esta PC", self.editor_panel)
+        self.send_ip_button.setToolTip(
+            "Envía la IP de este servidor central al kiosco seleccionado para que se conecte con DesktopKioskCenter y reporte su estado y accesos. No cambia la IP de red de la PC."
+        )
         send_ip_row.addWidget(self.send_ip_button)
         send_ip_row.addStretch(1)
         editor_layout.addLayout(send_ip_row)
