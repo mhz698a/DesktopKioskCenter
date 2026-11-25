@@ -28,6 +28,7 @@ class InternalStudentsBackend(QObject):
         view.delete_requested.connect(self.delete_student)
         view.revert_requested.connect(self.revert_student)
         self.refresh()
+        self.refresh_faculty_choices()
         self.assignment_controller = UserAssignmentController(
             view.editor_panel,
             database,
@@ -72,6 +73,10 @@ class InternalStudentsBackend(QObject):
             return None
         return self._records_by_id.get(self._selected_id)
 
+    def refresh_faculty_choices(self):
+        if not self._closing:
+            self.view.editor_panel.set_faculties(self.database.list_faculties())
+
     def refresh_equipment_choices(self):
         if not self._closing:
             self.assignment_controller.refresh_equipment_choices()
@@ -84,7 +89,12 @@ class InternalStudentsBackend(QObject):
         self.assignment_controller.release_workers()
 
     def add_student(self):
-        dialog = UserRecordDialog("Agregar Alumno", FIELDS, self.view)
+        dialog = UserRecordDialog(
+            "Agregar Alumno",
+            FIELDS,
+            self.view,
+            faculties=self.database.list_faculties(),
+        )
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         try:
