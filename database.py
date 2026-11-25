@@ -18,7 +18,12 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from const import BASE_DIR, DATABASE_FILE
-from user_catalogs import FACULTY_DEFAULTS, INTERNAL_STAFF_TYPES
+from user_catalogs import (
+    EXTERNAL_USER_TYPE_DEFAULTS,
+    FACULTY_DEFAULTS,
+    INTERNAL_STAFF_TYPES,
+    UNIVERSITY_DEFAULTS,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -90,6 +95,18 @@ class Database:
                 );
 
                 CREATE TABLE IF NOT EXISTS faculties (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE COLLATE NOCASE
+                );
+
+                CREATE TABLE IF NOT EXISTS external_user_types (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                    requires_university INTEGER NOT NULL DEFAULT 0
+                        CHECK (requires_university IN (0, 1))
+                );
+
+                CREATE TABLE IF NOT EXISTS universities (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name TEXT NOT NULL UNIQUE COLLATE NOCASE
                 );
@@ -173,6 +190,37 @@ class Database:
                 connection.execute(
                     "INSERT INTO schema_migrations (migration_key) VALUES (?)",
                     (faculty_seed_key,),
+                )
+
+            user_type_seed_key = "external_user_types_defaults_v1"
+            if not connection.execute(
+                "SELECT 1 FROM schema_migrations WHERE migration_key = ?",
+                (user_type_seed_key,),
+            ).fetchone():
+                connection.executemany(
+                    """
+                    INSERT OR IGNORE INTO external_user_types (name, requires_university)
+                    VALUES (?, ?)
+                    """,
+                    EXTERNAL_USER_TYPE_DEFAULTS,
+                )
+                connection.execute(
+                    "INSERT INTO schema_migrations (migration_key) VALUES (?)",
+                    (user_type_seed_key,),
+                )
+
+            university_seed_key = "universities_defaults_v1"
+            if not connection.execute(
+                "SELECT 1 FROM schema_migrations WHERE migration_key = ?",
+                (university_seed_key,),
+            ).fetchone():
+                connection.executemany(
+                    "INSERT OR IGNORE INTO universities (name) VALUES (?)",
+                    ((university,) for university in UNIVERSITY_DEFAULTS),
+                )
+                connection.execute(
+                    "INSERT INTO schema_migrations (migration_key) VALUES (?)",
+                    (university_seed_key,),
                 )
 
             # Migraciones incrementales de correo electrónico en las categorías de usuarios.
@@ -358,6 +406,7 @@ class Database:
 
         self._migrate_legacy_json()
         self._sync_faculty_catalog_from_records()
+        self._sync_external_user_catalogs_from_records()
 
     def _sync_faculty_catalog_from_records(self) -> None:
         """Importa una sola vez las facultades de datos previos a este catálogo."""
@@ -695,6 +744,234 @@ class Database:
             )
             return cursor.rowcount > 0
 
+    def _sync_external_user_catalogs_from_records(self) -> None:
+        """Importa una sola vez tipos y universidades ya presentes en los datos."""
+        migration_key = "external_user_catalog_existing_data_v1"
+        with self.connection() as connection:
+            if connection.execute(
+                "SELECT 1 FROM schema_migrations WHERE migration_key = ?",
+                (migration_key,),
+            ).fetchone():
+                return
+
+            connection.execute(
+                """
+                INSERT OR IGNORE INTO external_user_types (name, requires_university)
+                SELECT tipo_usuario,
+                       MAX(CASE WHEN TRIM(universidad) <> '' THEN 1 ELSE 0 END)
+                FROM external_users
+                WHERE TRIM(tipo_usuario) <> ''
+                GROUP BY tipo_usuario
+                """
+            )
+            connection.execute(
+                """
+                INSERT OR IGNORE INTO external_user_types (name, requires_university)
+                SELECT tipo_usuario,
+                       MAX(CASE WHEN TRIM(universidad_externa) <> '' THEN 1 ELSE 0 END)
+                FROM access_logs
+                WHERE TRIM(tipo_usuario) <> ''
+                  AND lower(trim(tipo_usuario)) NOT IN
+                      ('alumno interno', 'trabajador interno', 'docente', 'administrativo')
+                GROUP BY tipo_usuario
+                """
+            )
+            connection.execute(
+                """
+                INSERT OR IGNORE INTO universities (name)
+                SELECT TRIM(universidad)
+                FROM external_users
+                WHERE TRIM(universidad) <> ''
+                UNION
+                SELECT TRIM(universidad_externa)
+                FROM access_logs
+                WHERE TRIM(universidad_externa) <> ''
+                """
+            )
+            connection.execute(
+                "INSERT INTO schema_migrations (migration_key) VALUES (?)",
+                (migration_key,),
+            )
+
+    def list_external_user_types(self) -> list[dict]:
+        """Lista los tipos externos y señala si requieren una universidad."""
+        with self.connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT name, requires_university
+                FROM external_user_types
+                ORDER BY name COLLATE NOCASE
+                """
+            ).fetchall()
+            return [
+                {
+                    "name": str(row["name"]),
+                    "requires_university": bool(row["requires_university"]),
+                }
+                for row in rows
+            ]
+
+    def external_user_type_requires_university(self, name: str) -> bool:
+        normalized = str(name or "").strip()
+        if not normalized:
+            return False
+        with self.connection() as connection:
+            row = connection.execute(
+                """
+                SELECT requires_university
+                FROM external_user_types
+                WHERE name = ? COLLATE NOCASE
+                """,
+                (normalized,),
+            ).fetchone()
+            return bool(row["requires_university"]) if row else False
+
+    def add_external_user_type(self, name: str, requires_university: bool = False) -> bool:
+        normalized = str(name or "").strip()
+        if not normalized or len(normalized) > 100:
+            raise ValueError("El tipo de usuario debe tener entre 1 y 100 caracteres.")
+        with self.connection() as connection:
+            cursor = connection.execute(
+                """
+                INSERT OR IGNORE INTO external_user_types (name, requires_university)
+                VALUES (?, ?)
+                """,
+                (normalized, int(bool(requires_university))),
+            )
+            return cursor.rowcount > 0
+
+    def rename_external_user_type(self, old_name: str, new_name: str) -> bool:
+        old_value = str(old_name or "").strip()
+        new_value = str(new_name or "").strip()
+        if not old_value or not new_value or len(new_value) > 100:
+            raise ValueError("El tipo de usuario debe tener entre 1 y 100 caracteres.")
+        if old_value.casefold() == new_value.casefold():
+            return False
+        with self.connection() as connection:
+            if connection.execute(
+                "SELECT 1 FROM external_user_types WHERE name = ? COLLATE NOCASE",
+                (new_value,),
+            ).fetchone():
+                raise sqlite3.IntegrityError("external user type already exists")
+            cursor = connection.execute(
+                "UPDATE external_user_types SET name = ? WHERE name = ? COLLATE NOCASE",
+                (new_value, old_value),
+            )
+            if not cursor.rowcount:
+                return False
+            connection.execute(
+                "UPDATE external_users SET tipo_usuario = ? WHERE tipo_usuario = ? COLLATE NOCASE",
+                (new_value, old_value),
+            )
+            connection.execute(
+                "UPDATE access_logs SET tipo_usuario = ? WHERE tipo_usuario = ? COLLATE NOCASE",
+                (new_value, old_value),
+            )
+            connection.execute(
+                "UPDATE received_logins SET user_type = ? WHERE user_type = ? COLLATE NOCASE",
+                (new_value, old_value),
+            )
+            return True
+
+    def delete_external_user_type(self, name: str) -> bool:
+        normalized = str(name or "").strip()
+        if not normalized:
+            return False
+        with self.connection() as connection:
+            used = connection.execute(
+                """
+                SELECT 1 FROM external_users WHERE tipo_usuario = ? COLLATE NOCASE
+                UNION ALL
+                SELECT 1 FROM access_logs WHERE tipo_usuario = ? COLLATE NOCASE
+                UNION ALL
+                SELECT 1 FROM received_logins WHERE user_type = ? COLLATE NOCASE
+                LIMIT 1
+                """,
+                (normalized, normalized, normalized),
+            ).fetchone()
+            if used:
+                raise ValueError(
+                    "No se puede eliminar este tipo porque aparece en usuarios registrados "
+                    "o en el historial de accesos y peticiones."
+                )
+            cursor = connection.execute(
+                "DELETE FROM external_user_types WHERE name = ? COLLATE NOCASE",
+                (normalized,),
+            )
+            return cursor.rowcount > 0
+
+    def list_universities(self) -> list[str]:
+        with self.connection() as connection:
+            rows = connection.execute(
+                "SELECT name FROM universities ORDER BY name COLLATE NOCASE"
+            ).fetchall()
+            return [str(row["name"]) for row in rows]
+
+    def add_university(self, name: str) -> bool:
+        normalized = str(name or "").strip()
+        if not normalized or len(normalized) > 180:
+            raise ValueError("El nombre de la universidad debe tener entre 1 y 180 caracteres.")
+        with self.connection() as connection:
+            cursor = connection.execute(
+                "INSERT OR IGNORE INTO universities (name) VALUES (?)",
+                (normalized,),
+            )
+            return cursor.rowcount > 0
+
+    def rename_university(self, old_name: str, new_name: str) -> bool:
+        old_value = str(old_name or "").strip()
+        new_value = str(new_name or "").strip()
+        if not old_value or not new_value or len(new_value) > 180:
+            raise ValueError("El nombre de la universidad debe tener entre 1 y 180 caracteres.")
+        if old_value.casefold() == new_value.casefold():
+            return False
+        with self.connection() as connection:
+            if connection.execute(
+                "SELECT 1 FROM universities WHERE name = ? COLLATE NOCASE",
+                (new_value,),
+            ).fetchone():
+                raise sqlite3.IntegrityError("university already exists")
+            cursor = connection.execute(
+                "UPDATE universities SET name = ? WHERE name = ? COLLATE NOCASE",
+                (new_value, old_value),
+            )
+            if not cursor.rowcount:
+                return False
+            connection.execute(
+                "UPDATE external_users SET universidad = ? WHERE universidad = ? COLLATE NOCASE",
+                (new_value, old_value),
+            )
+            connection.execute(
+                "UPDATE access_logs SET universidad_externa = ? WHERE universidad_externa = ? COLLATE NOCASE",
+                (new_value, old_value),
+            )
+            return True
+
+    def delete_university(self, name: str) -> bool:
+        normalized = str(name or "").strip()
+        if not normalized:
+            return False
+        with self.connection() as connection:
+            used = connection.execute(
+                """
+                SELECT 1 FROM external_users WHERE universidad = ? COLLATE NOCASE
+                UNION ALL
+                SELECT 1 FROM access_logs WHERE universidad_externa = ? COLLATE NOCASE
+                LIMIT 1
+                """,
+                (normalized, normalized),
+            ).fetchone()
+            if used:
+                raise ValueError(
+                    "No se puede eliminar esta universidad porque está asignada a usuarios "
+                    "registrados o aparece en el historial de accesos."
+                )
+            cursor = connection.execute(
+                "DELETE FROM universities WHERE name = ? COLLATE NOCASE",
+                (normalized,),
+            )
+            return cursor.rowcount > 0
+
     def list_internal_students(self) -> list[dict]:
         """Devuelve los alumnos internos en orden de alta."""
         with self.connection() as connection:
@@ -942,15 +1219,33 @@ class Database:
         return email
 
     def add_external_user(self, record: dict) -> int:
-        """Inserta un usuario externo con email obligatorio."""
+        """Inserta un usuario externo con email obligatorio y tipo configurable."""
         email = self._validate_external_email(record.get("email", ""))
-        tipo_usuario = record["tipo_usuario"].strip()
-        universidad = record.get("universidad", "").strip()
-        if tipo_usuario != "Estudiante Externo":
-            # Solo un estudiante externo debe quedar vinculado a una universidad.
-            universidad = ""
+        tipo_usuario = str(record.get("tipo_usuario", "") or "").strip()
+        universidad = str(record.get("universidad", "") or "").strip()
 
         with self.connection() as connection:
+            type_row = connection.execute(
+                """
+                SELECT name, requires_university
+                FROM external_user_types
+                WHERE name = ? COLLATE NOCASE
+                """,
+                (tipo_usuario,),
+            ).fetchone()
+            if not type_row:
+                raise ValueError("Selecciona un tipo de usuario existente en el catálogo.")
+            tipo_usuario = str(type_row["name"])
+            if bool(type_row["requires_university"]):
+                if not universidad:
+                    raise ValueError("El tipo de usuario seleccionado requiere universidad.")
+                connection.execute(
+                    "INSERT OR IGNORE INTO universities (name) VALUES (?)",
+                    (universidad,),
+                )
+            else:
+                universidad = ""
+
             if self._email_in_use(connection, email):
                 raise sqlite3.IntegrityError("email already registered")
             cursor = connection.execute(
@@ -970,13 +1265,32 @@ class Database:
             return int(cursor.lastrowid)
 
     def update_external_user(self, user_id: int, record: dict) -> bool:
-        """Actualiza un usuario con email válido; limpia universidad si no aplica."""
+        """Actualiza usuario externo usando las reglas del catálogo de tipos."""
         email = self._validate_external_email(record.get("email", ""))
-        tipo_usuario = record["tipo_usuario"].strip()
-        universidad = record.get("universidad", "").strip()
-        if tipo_usuario != "Estudiante Externo":
-            universidad = ""
+        tipo_usuario = str(record.get("tipo_usuario", "") or "").strip()
+        universidad = str(record.get("universidad", "") or "").strip()
         with self.connection() as connection:
+            type_row = connection.execute(
+                """
+                SELECT name, requires_university
+                FROM external_user_types
+                WHERE name = ? COLLATE NOCASE
+                """,
+                (tipo_usuario,),
+            ).fetchone()
+            if not type_row:
+                raise ValueError("Selecciona un tipo de usuario existente en el catálogo.")
+            tipo_usuario = str(type_row["name"])
+            if bool(type_row["requires_university"]):
+                if not universidad:
+                    raise ValueError("El tipo de usuario seleccionado requiere universidad.")
+                connection.execute(
+                    "INSERT OR IGNORE INTO universities (name) VALUES (?)",
+                    (universidad,),
+                )
+            else:
+                universidad = ""
+
             if self._email_in_use(connection, email, exclude_external_user_id=int(user_id)):
                 raise sqlite3.IntegrityError("email already registered")
             cursor = connection.execute(
@@ -1255,6 +1569,11 @@ class Database:
                     {period_expression} AS period,
                     CASE
                         WHEN lower(trim(tipo_usuario)) IN ('estudiante externo', 'estudiante')
+                             OR EXISTS (
+                                 SELECT 1 FROM external_user_types eut
+                                 WHERE eut.name = access_logs.tipo_usuario COLLATE NOCASE
+                                   AND eut.requires_university = 1
+                             )
                             THEN 'Universidad'
                         WHEN lower(trim(tipo_usuario)) IN
                              ('público en general', 'publico en general', 'publico_general')
@@ -1265,6 +1584,11 @@ class Database:
                     END AS origin,
                     CASE
                         WHEN lower(trim(tipo_usuario)) IN ('estudiante externo', 'estudiante')
+                             OR EXISTS (
+                                 SELECT 1 FROM external_user_types eut
+                                 WHERE eut.name = access_logs.tipo_usuario COLLATE NOCASE
+                                   AND eut.requires_university = 1
+                             )
                             THEN COALESCE(NULLIF(trim(universidad_externa), ''),
                                           'Universidad no especificada')
                         WHEN lower(trim(tipo_usuario)) IN
@@ -1305,9 +1629,19 @@ class Database:
                     UNION
                     SELECT TRIM(universidad_externa) AS name
                     FROM access_logs
-                    WHERE lower(trim(tipo_usuario)) IN
-                          ('estudiante externo', 'estudiante')
+                    WHERE (
+                        lower(trim(tipo_usuario)) IN ('estudiante externo', 'estudiante')
+                        OR EXISTS (
+                            SELECT 1 FROM external_user_types eut
+                            WHERE eut.name = access_logs.tipo_usuario COLLATE NOCASE
+                              AND eut.requires_university = 1
+                        )
+                    )
                       AND TRIM(universidad_externa) <> ''
+                    UNION
+                    SELECT TRIM(name) AS name
+                    FROM universities
+                    WHERE TRIM(name) <> ''
                 )
                 ORDER BY name COLLATE NOCASE
                 """
