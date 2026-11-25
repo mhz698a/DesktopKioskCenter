@@ -1,4 +1,4 @@
-"""Diálogo común para altas de alumnos y usuarios.
+"""Diálogo común para altas de alumnos, docentes, administrativos y usuarios.
 
 El tipo de widget depende de la clave de cada campo. Esto evita duplicar diálogos
 y mantiene las reglas de entrada juntas, antes de enviar datos a SQLite.
