@@ -182,12 +182,16 @@ class MainWindow(QMainWindow):
 
     def manage_faculties(self):
         """Abre el catálogo común y sincroniza los combos de alumnos y personal."""
+        selected_student_id = self.internal_students_backend._selected_id
+        selected_staff_id = self.internal_staff_backend._selected_id
         dialog = FacultyCatalogDialog(self.database, self)
         dialog.exec()
-        # La edición se persiste inmediatamente; sincroniza los combos incluso
-        # cuando el usuario cierra el diálogo mediante la X de la ventana.
+        # La edición se persiste inmediatamente. Recarga primero los combos y
+        # luego el registro seleccionado para reflejar un posible renombrado.
         self.internal_students_backend.refresh_faculty_choices()
         self.internal_staff_backend.refresh_faculty_choices()
+        self.internal_students_backend.refresh(selected_id=selected_student_id)
+        self.internal_staff_backend.refresh(selected_id=selected_staff_id)
 
     def update_header_clock(self):
         self.clock_label.setText(QTime.currentTime().toString("HH:mm:ss"))
