@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 from database import Database
+from user_catalogs import FACULTY_DEFAULTS
 
 
 class DatabaseTests(unittest.TestCase):
@@ -223,7 +224,7 @@ class DatabaseTests(unittest.TestCase):
         )
         self.assertEqual(
             catalog["faculties"],
-            ["Facultad de Derecho", "Facultad de Informática"],
+            sorted(FACULTY_DEFAULTS, key=str.casefold),
         )
 
     def test_manual_student_unlock_records_simulated_registration_and_access(self):
