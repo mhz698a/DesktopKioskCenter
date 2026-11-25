@@ -36,9 +36,13 @@ class UserRecordDialog(cQDlg):
         self.setWindowTitle(title)
         self.setMinimumWidth(520)
         self.fields = fields
-        self.faculties = list(faculties or FACULTY_DEFAULTS)
-        self.user_type_options = list(user_type_options or TIPOS_USUARIO)
-        self.universities = list(universities or UNIVERSIDADES_QUERETARO)
+        self.faculties = list(FACULTY_DEFAULTS if faculties is None else faculties)
+        self.user_type_options = list(
+            TIPOS_USUARIO if user_type_options is None else user_type_options
+        )
+        self.universities = list(
+            UNIVERSIDADES_QUERETARO if universities is None else universities
+        )
         if university_required_types is None:
             university_required_types = {
                 name for name, required in EXTERNAL_USER_TYPE_DEFAULTS if required
