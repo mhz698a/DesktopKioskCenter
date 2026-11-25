@@ -132,7 +132,7 @@ class EquipmentTab(QWidget):
         editor_layout.addLayout(power_row)
 
         send_ip_row = QHBoxLayout()
-        self.send_ip_button = QPushButton("Configurar IP central en esta PC", self.editor_panel)
+        self.send_ip_button = QPushButton("Enviar IP del servidor central a esta PC", self.editor_panel)
         self.send_ip_button.setToolTip(
             "Envía la IP de este servidor central al kiosco seleccionado para que se conecte con DesktopKioskCenter y reporte su estado y accesos. No cambia la IP de red de la PC."
         )
