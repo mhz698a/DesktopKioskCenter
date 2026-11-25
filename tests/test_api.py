@@ -288,6 +288,65 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("message", response.get_json())
 
+    def test_external_catalog_api_and_custom_user_types(self):
+        self.db.add_external_user_type("Invitado académico", True)
+        self.db.add_university("Universidad de Prueba")
+
+        catalog = self.client.get("/api/v1/catalog/external-users")
+        self.assertEqual(catalog.status_code, 200)
+        payload = catalog.get_json()
+        self.assertIn(
+            {"name": "Invitado académico", "requires_university": True},
+            payload["user_types"],
+        )
+        self.assertIn("Universidad de Prueba", payload["universities"])
+
+        missing_university = self.client.post(
+            "/api/v1/users/register/externo",
+            json={
+                "action": "registro_externo",
+                "data": {
+                    "nombres": "Paula",
+                    "apellidos": "Invitada",
+                    "email": "paula.sin.universidad@example.com",
+                    "tipo-usuario": "Invitado académico",
+                },
+            },
+        )
+        self.assertEqual(missing_university.status_code, 400)
+
+        registered = self.client.post(
+            "/api/v1/users/register/externo",
+            json={
+                "action": "registro_externo",
+                "data": {
+                    "nombres": "Paula",
+                    "apellidos": "Invitada",
+                    "email": "paula.invitada@example.com",
+                    "tipo-usuario": "Invitado académico",
+                    "universidad-ext": "Universidad de Prueba",
+                },
+            },
+        )
+        self.assertEqual(registered.status_code, 201)
+        saved = self.db.list_external_users()[0]
+        self.assertEqual(saved["tipo_usuario"], "Invitado académico")
+        self.assertEqual(saved["universidad"], "Universidad de Prueba")
+
+        unknown_type = self.client.post(
+            "/api/v1/users/register/externo",
+            json={
+                "action": "registro_externo",
+                "data": {
+                    "nombres": "Otra",
+                    "apellidos": "Invitada",
+                    "email": "otra.invitada@example.com",
+                    "tipo-usuario": "Tipo no configurado",
+                },
+            },
+        )
+        self.assertEqual(unknown_type.status_code, 400)
+
     def test_internal_staff_registers_and_logs_in_with_employee_number(self):
         payload = {
             "action": "registro_personal",
