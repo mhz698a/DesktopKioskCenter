@@ -53,7 +53,7 @@ class ExternalUserCatalogDialog(cQDlg):
         self.type_name = QLineEdit(page)
         self.type_name.setPlaceholderText("Nombre del tipo de usuario")
         self.type_requires_university = QCheckBox(
-            "Este tipo requiere seleccionar una universidad", page
+            "Este tipo de usuario requiere seleccionar una universidad", page
         )
 
         self.type_add_button = QPushButton("Agregar", page)
