@@ -69,7 +69,7 @@ def remove_previous_demo_data(database: Database) -> tuple[int, int]:
 
 
 def seed_demo_data(database: Database, *, days: int = 90, seed: int = 7085) -> int:
-    """Genera accesos diarios de tres procedencias para el rango solicitado."""
+    """Genera accesos diarios de varias procedencias, incluidos docentes y administrativos."""
     rng = random.Random(seed)
     today = datetime.now().date()
     total = 0
