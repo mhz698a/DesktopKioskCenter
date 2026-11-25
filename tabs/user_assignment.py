@@ -96,7 +96,7 @@ class UserAssignmentController(QObject):
         if not identifier or not display_name:
             cQMsgBox.warning(
                 self.editor, "Datos incompletos",
-                "El usuario necesita nombre, apellidos y un identificador institucional (correo, expediente o número de empleado).",
+                "El usuario necesita nombre, apellidos y un identificador institucional: correo, expediente o número de empleado.",
             )
             return
 
