@@ -160,10 +160,20 @@ class Database:
                 ),
             )
 
-            connection.executemany(
-                "INSERT OR IGNORE INTO faculties (name) VALUES (?)",
-                ((faculty,) for faculty in FACULTY_DEFAULTS),
-            )
+            faculty_seed_key = "faculty_catalog_defaults_v1"
+            faculty_seeded = connection.execute(
+                "SELECT 1 FROM schema_migrations WHERE migration_key = ?",
+                (faculty_seed_key,),
+            ).fetchone()
+            if not faculty_seeded:
+                connection.executemany(
+                    "INSERT OR IGNORE INTO faculties (name) VALUES (?)",
+                    ((faculty,) for faculty in FACULTY_DEFAULTS),
+                )
+                connection.execute(
+                    "INSERT INTO schema_migrations (migration_key) VALUES (?)",
+                    (faculty_seed_key,),
+                )
 
             # Migraciones incrementales de correo electrónico en las categorías de usuarios.
             internal_columns = {
