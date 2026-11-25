@@ -9,10 +9,11 @@ from flask import Flask, g, jsonify, request
 from werkzeug.serving import make_server
 
 from database import Database
+from user_catalogs import INTERNAL_STAFF_TYPES
 
 logger = logging.getLogger(__name__)
 
-LOGIN_UNKNOWN_MESSAGE = "El correo electrónico o expediente no está registrado. Realice su registro primero en el mostrador."
+LOGIN_UNKNOWN_MESSAGE = "El correo electrónico, expediente o número de empleado no está registrado. Realice su registro primero en el mostrador."
 DUPLICATE_MESSAGE = "El correo electrónico ya se encuentra registrado. Inicie sesión."
 DUPLICATE_STUDENT_MESSAGE = "El correo electrónico o expediente ya se encuentra registrado. Inicie sesión."
 STUDENT_REGISTERED_MESSAGE = "Registro de alumno completado con éxito."
@@ -72,16 +73,25 @@ def create_api_app(database: Database) -> Flask:
         except Exception:
             logger.exception("No se pudo guardar el log de un acceso REST.")
 
+    @app.get("/api/v1/catalog/faculties")
+    def faculty_catalog():
+        """Publica el catálogo compartido para los formularios de los kioscos."""
+        return jsonify({"faculties": database.list_faculties()}), 200
+
     @app.post("/api/v1/auth-client-pc/login")
     def login():
         data, error = parse_payload("unlock_login")
         if error:
             return error
-        # El identificador es email o expediente; nunca se busca por nombres.
+        # El identificador es email, expediente o número de empleado; nunca nombres.
         identifier = str(data.get("identificador", data.get("usuario", data.get("email", ""))) or "").strip()
         password = str(data.get("contrasena", "") or "")
         if not identifier or not password:
-            return response(False, "El correo electrónico/expediente y la contraseña son obligatorios.", 400)
+            return response(
+                False,
+                "El correo electrónico/expediente/número de empleado y la contraseña son obligatorios.",
+                400,
+            )
 
         user = database.find_registered_user(identifier)
         if user is None:
@@ -134,6 +144,79 @@ def create_api_app(database: Database) -> Flask:
         safe_request_log(email, "Alumno interno", "registro_alumno", "registrado", STUDENT_REGISTERED_MESSAGE)
         safe_access_log({**record, "tipo_usuario": "Alumno interno"}, fallback_identifier=expediente)
         return response(True, STUDENT_REGISTERED_MESSAGE, 201)
+
+    @app.post("/api/v1/users/register/personal")
+    def register_internal_staff():
+        """Registra docentes y administrativos usando número de empleado."""
+        data, error = parse_payload("registro_personal")
+        if error:
+            return error
+
+        names = str(data.get("nombres", "") or "").strip()
+        surnames = str(data.get("apellidos", "") or "").strip()
+        email = str(data.get("email", "") or "").strip()
+        user_type = str(
+            data.get("tipo-personal", data.get("tipo_personal", data.get("tipo_usuario", "")))
+            or ""
+        ).strip()
+        faculty = str(
+            data.get("facultad-personal", data.get("facultad", "")) or ""
+        ).strip()
+        employee_number = str(
+            data.get("numero-empleado", data.get("numero_empleado", "")) or ""
+        ).strip()
+
+        if (
+            not names or not surnames or not faculty
+            or not all(c.isalpha() or c == " " for c in names)
+            or not all(c.isalpha() or c == " " for c in surnames)
+            or not employee_number.isdigit()
+            or user_type not in INTERNAL_STAFF_TYPES
+        ):
+            return response(
+                False,
+                "Los nombres, apellidos, tipo de personal, facultad y número de empleado son obligatorios y válidos.",
+                400,
+            )
+        if not email or not EMAIL_RE.fullmatch(email):
+            return response(False, "Ingresa un correo electrónico válido.", 400)
+
+        record = {
+            "nombres": names,
+            "apellidos": surnames,
+            "email": email,
+            "tipo_usuario": user_type,
+            "facultad": faculty,
+            "numero_empleado": employee_number,
+        }
+        try:
+            database.add_internal_staff(record)
+        except sqlite3.IntegrityError:
+            message = (
+                "El correo electrónico o número de empleado ya está registrado. "
+                "Inicie sesión si ya cuenta con un registro."
+            )
+            safe_request_log(
+                employee_number, user_type, "registro_personal", "duplicado", message
+            )
+            return response(False, message, 409)
+        except (sqlite3.Error, ValueError):
+            logger.exception("Falló el registro de un docente o administrativo.")
+            return response(
+                False,
+                "No se pudo completar el registro de personal por un error de almacenamiento.",
+                500,
+            )
+
+        message = f"Registro de {user_type.lower()} completado con éxito."
+        safe_request_log(
+            employee_number, user_type, "registro_personal", "registrado", message
+        )
+        safe_access_log(
+            {**record, "expediente": employee_number},
+            fallback_identifier=employee_number,
+        )
+        return response(True, message, 201)
 
     @app.post("/api/v1/users/register/externo")
     def register_external():
@@ -249,6 +332,7 @@ def create_api_app(database: Database) -> Flask:
         route_actions = {
             "/api/v1/auth-client-pc/login": "unlock_login",
             "/api/v1/users/register/alumno": "registro_alumno",
+            "/api/v1/users/register/personal": "registro_personal",
             "/api/v1/users/register/externo": "registro_externo",
         }
         if request.method != "POST" or request.path not in route_actions:
@@ -264,11 +348,19 @@ def create_api_app(database: Database) -> Flask:
         identifier = (
             data.get("usuario")
             or data.get("expediente")
+            or data.get("numero-empleado")
+            or data.get("numero_empleado")
             or data.get("email")
             or data.get("nombres")
             or ""
         )
-        user_type = data.get("tipo-usuario") or data.get("tipo_usuario") or ""
+        user_type = (
+            data.get("tipo-personal")
+            or data.get("tipo_personal")
+            or data.get("tipo-usuario")
+            or data.get("tipo_usuario")
+            or ""
+        )
         action = payload.get("action") or route_actions[request.path]
         status = response.status_code
         if 200 <= status < 300:
