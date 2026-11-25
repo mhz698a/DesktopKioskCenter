@@ -360,8 +360,16 @@ class Database:
         self._sync_faculty_catalog_from_records()
 
     def _sync_faculty_catalog_from_records(self) -> None:
-        """Añade al catálogo facultades ya presentes en datos legados o históricos."""
+        """Importa una sola vez las facultades de datos previos a este catálogo."""
+        migration_key = "faculty_catalog_existing_data_v1"
         with self.connection() as connection:
+            already_applied = connection.execute(
+                "SELECT 1 FROM schema_migrations WHERE migration_key = ?",
+                (migration_key,),
+            ).fetchone()
+            if already_applied:
+                return
+
             connection.execute(
                 """
                 INSERT OR IGNORE INTO faculties (name)
@@ -381,6 +389,10 @@ class Database:
                 )
                 WHERE TRIM(name) <> ''
                 """
+            )
+            connection.execute(
+                "INSERT INTO schema_migrations (migration_key) VALUES (?)",
+                (migration_key,),
             )
 
     def _migrate_legacy_json(self) -> None:
