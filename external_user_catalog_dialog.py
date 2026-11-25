@@ -181,10 +181,8 @@ class ExternalUserCatalogDialog(cQDlg):
             self.type_name.setFocus()
             return
         try:
-            if old_name.casefold() != new_name.casefold():
-                self.database.rename_external_user_type(old_name, new_name)
-            self.database.set_external_user_type_requires_university(
-                new_name, self.type_requires_university.isChecked()
+            self.database.update_external_user_type(
+                old_name, new_name, self.type_requires_university.isChecked()
             )
         except sqlite3.IntegrityError:
             cQMsgBox.warning(self, "Tipo duplicado", "Ya existe un tipo con ese nombre.")
