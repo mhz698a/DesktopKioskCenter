@@ -1163,7 +1163,9 @@ class Database:
                 """,
                 (
                     equipment, names, surnames,
-                    str(user.get("expediente", "") or "").strip(),
+                    str(
+                        user.get("numero_empleado") or user.get("expediente") or ""
+                    ).strip(),
                     faculty, university, user_type,
                 ),
             )
