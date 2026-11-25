@@ -447,6 +447,13 @@ class DatabaseTests(unittest.TestCase):
         self.assertTrue(self.db.delete_internal_staff(staff_id))
         self.assertIsNone(self.db.find_registered_user("990011"))
 
+    def test_faculty_catalog_removals_persist_after_database_reinitialization(self):
+        faculty = "Facultad de Química"
+        self.assertIn(faculty, self.db.list_faculties())
+        self.assertTrue(self.db.delete_faculty(faculty))
+        self.db.initialize()
+        self.assertNotIn(faculty, self.db.list_faculties())
+
     def test_faculty_catalog_add_rename_and_protect_faculties_in_use(self):
         self.assertIn("Facultad de Artes", self.db.list_faculties())
         self.assertTrue(self.db.add_faculty("Escuela de Ciencias"))
