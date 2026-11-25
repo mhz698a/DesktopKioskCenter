@@ -287,3 +287,77 @@ class ApiTests(unittest.TestCase):
         })
         self.assertEqual(response.status_code, 400)
         self.assertIn("message", response.get_json())
+
+    def test_internal_staff_registers_and_logs_in_with_employee_number(self):
+        payload = {
+            "action": "registro_personal",
+            "data": {
+                "nombres": "Laura",
+                "apellidos": "Gómez Pérez",
+                "email": "laura.docente@example.com",
+                "tipo-personal": "Docente",
+                "facultad-personal": "Facultad de Ingeniería",
+                "numero-empleado": "778899",
+            },
+        }
+        registered = self.client.post(
+            "/api/v1/users/register/personal",
+            json=payload,
+        )
+        self.assertEqual(registered.status_code, 201)
+        self.assertTrue(registered.get_json()["unlocked"])
+
+        staff = self.db.list_internal_staff()[0]
+        self.assertEqual(staff["tipo_usuario"], "Docente")
+        self.assertEqual(staff["numero_empleado"], "778899")
+        self.assertEqual(self.db.list_access_logs()[0]["expediente"], "778899")
+        self.assertEqual(self.db.list_access_logs()[0]["tipo_usuario"], "Docente")
+
+        login = self.client.post("/api/v1/auth-client-pc/login", json={
+            "action": "unlock_login",
+            "data": {
+                "usuario": "778899",
+                "contrasena": ".778899",
+            },
+        })
+        self.assertEqual(login.status_code, 200)
+        self.assertTrue(login.get_json()["unlocked"])
+        self.assertEqual(self.db.list_access_logs()[0]["expediente"], "778899")
+        self.assertEqual(self.db.list_access_logs()[0]["tipo_usuario"], "Docente")
+
+        duplicate = self.client.post(
+            "/api/v1/users/register/personal",
+            json=payload,
+        )
+        self.assertEqual(duplicate.status_code, 409)
+        self.assertFalse(duplicate.get_json()["unlocked"])
+
+    def test_internal_staff_requires_valid_type_and_numeric_employee_number(self):
+        base = {
+            "nombres": "Ana",
+            "apellidos": "Ejemplo",
+            "email": "ana.staff@example.com",
+            "tipo-personal": "Docente",
+            "facultad-personal": "Facultad de Artes",
+            "numero-empleado": "12A34",
+        }
+        invalid_number = self.client.post(
+            "/api/v1/users/register/personal",
+            json={"action": "registro_personal", "data": base},
+        )
+        self.assertEqual(invalid_number.status_code, 400)
+
+        invalid_type = self.client.post(
+            "/api/v1/users/register/personal",
+            json={
+                "action": "registro_personal",
+                "data": {**base, "numero-empleado": "12345", "tipo-personal": "Alumno"},
+            },
+        )
+        self.assertEqual(invalid_type.status_code, 400)
+        self.assertEqual(self.db.list_internal_staff(), [])
+
+    def test_faculty_catalog_endpoint_returns_database_options(self):
+        response = self.client.get("/api/v1/catalog/faculties")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Facultad de Artes", response.get_json()["faculties"])
