@@ -1623,8 +1623,14 @@ class Database:
                 FROM (
                     SELECT TRIM(universidad) AS name
                     FROM external_users
-                    WHERE lower(trim(tipo_usuario)) IN
-                          ('estudiante externo', 'estudiante')
+                    WHERE (
+                        lower(trim(tipo_usuario)) IN ('estudiante externo', 'estudiante')
+                        OR EXISTS (
+                            SELECT 1 FROM external_user_types eut
+                            WHERE eut.name = external_users.tipo_usuario COLLATE NOCASE
+                              AND eut.requires_university = 1
+                        )
+                    )
                       AND TRIM(universidad) <> ''
                     UNION
                     SELECT TRIM(universidad_externa) AS name
