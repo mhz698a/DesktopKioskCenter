@@ -1096,12 +1096,22 @@ class Database:
         en una sola transacción.
         """
         user_type = str(user.get("tipo_usuario") or "Alumno interno").strip()
-        if user_type not in ("Alumno interno", "Público en general"):
-            raise ValueError("La asignación remota solo admite alumnos internos y público en general.")
+        if user_type not in (
+            "Alumno interno", "Docente", "Administrativo", "Público en general"
+        ):
+            raise ValueError(
+                "La asignación remota solo admite alumnos, docentes, administrativos "
+                "y público en general."
+            )
 
-        identifier = str(user.get("email") or user.get("expediente") or "").strip()
+        identifier = str(
+            user.get("numero_empleado") or user.get("email") or user.get("expediente") or ""
+        ).strip()
         if not identifier:
-            raise ValueError("El usuario debe tener correo o expediente para auditar la sesión.")
+            raise ValueError(
+                "El usuario debe tener correo, expediente o número de empleado "
+                "para auditar la sesión."
+            )
 
         equipment = str(kiosk_name or "").strip()
         source_ip = str(client_ip or "").strip()
@@ -1114,6 +1124,8 @@ class Database:
         )
         if user_type == "Público en general":
             registration_action = "registro_usuario_simulado"
+        elif user_type in ("Docente", "Administrativo"):
+            registration_action = "registro_personal_simulado"
         else:
             registration_action = "registro_alumno_simulado"
 
