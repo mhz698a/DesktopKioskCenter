@@ -840,77 +840,111 @@ class Database:
             )
             return cursor.rowcount > 0
 
-    def set_external_user_type_requires_university(
-        self, name: str, requires_university: bool
+    def update_external_user_type(
+        self, old_name: str, new_name: str, requires_university: bool
     ) -> bool:
-        """Actualiza la regla del tipo sin dejar usuarios actuales en estado inválido."""
-        normalized = str(name or "").strip()
+        """Renombra el tipo y actualiza su regla en una sola transacción."""
+        old_value = str(old_name or "").strip()
+        new_value = str(new_name or "").strip()
+        if not old_value or not new_value or len(new_value) > 100:
+            raise ValueError("El tipo de usuario debe tener entre 1 y 100 caracteres.")
+
         with self.connection() as connection:
-            row = connection.execute(
-                "SELECT requires_university FROM external_user_types WHERE name = ? COLLATE NOCASE",
-                (normalized,),
+            current = connection.execute(
+                """
+                SELECT name, requires_university
+                FROM external_user_types
+                WHERE name = ? COLLATE NOCASE
+                """,
+                (old_value,),
             ).fetchone()
-            if not row:
+            if not current:
                 return False
+
+            current_name = str(current["name"])
             required = bool(requires_university)
-            if required and not bool(row["requires_university"]):
-                missing = connection.execute(
+            if new_value.casefold() != current_name.casefold() and connection.execute(
+                "SELECT 1 FROM external_user_types WHERE name = ? COLLATE NOCASE",
+                (new_value,),
+            ).fetchone():
+                raise sqlite3.IntegrityError("external user type already exists")
+
+            if required and not bool(current["requires_university"]):
+                missing_user = connection.execute(
                     """
                     SELECT 1 FROM external_users
                     WHERE tipo_usuario = ? COLLATE NOCASE
                       AND TRIM(universidad) = ''
                     LIMIT 1
                     """,
-                    (normalized,),
+                    (current_name,),
                 ).fetchone()
-                if missing:
+                missing_access = connection.execute(
+                    """
+                    SELECT 1 FROM access_logs
+                    WHERE tipo_usuario = ? COLLATE NOCASE
+                      AND TRIM(universidad_externa) = ''
+                    LIMIT 1
+                    """,
+                    (current_name,),
+                ).fetchone()
+                if missing_user or missing_access:
                     raise ValueError(
-                        "No se puede activar el requisito todavía: asigna primero una universidad "
-                        "a los usuarios registrados con este tipo."
+                        "No se puede activar el requisito todavía: hay usuarios o accesos "
+                        "anteriores de este tipo sin universidad."
                     )
+
+            connection.execute(
+                """
+                UPDATE external_user_types
+                SET name = ?, requires_university = ?
+                WHERE name = ? COLLATE NOCASE
+                """,
+                (new_value, int(required), current_name),
+            )
             if not required:
                 connection.execute(
-                    "UPDATE external_users SET universidad = '' WHERE tipo_usuario = ? COLLATE NOCASE",
-                    (normalized,),
+                    """
+                    UPDATE external_users
+                    SET tipo_usuario = ?, universidad = ''
+                    WHERE tipo_usuario = ? COLLATE NOCASE
+                    """,
+                    (new_value, current_name),
                 )
-            cursor = connection.execute(
-                "UPDATE external_user_types SET requires_university = ? WHERE name = ? COLLATE NOCASE",
-                (int(required), normalized),
-            )
-            return cursor.rowcount > 0
-
-    def rename_external_user_type(self, old_name: str, new_name: str) -> bool:
-        old_value = str(old_name or "").strip()
-        new_value = str(new_name or "").strip()
-        if not old_value or not new_value or len(new_value) > 100:
-            raise ValueError("El tipo de usuario debe tener entre 1 y 100 caracteres.")
-        if old_value.casefold() == new_value.casefold():
-            return False
-        with self.connection() as connection:
-            if connection.execute(
-                "SELECT 1 FROM external_user_types WHERE name = ? COLLATE NOCASE",
-                (new_value,),
-            ).fetchone():
-                raise sqlite3.IntegrityError("external user type already exists")
-            cursor = connection.execute(
-                "UPDATE external_user_types SET name = ? WHERE name = ? COLLATE NOCASE",
-                (new_value, old_value),
-            )
-            if not cursor.rowcount:
-                return False
-            connection.execute(
-                "UPDATE external_users SET tipo_usuario = ? WHERE tipo_usuario = ? COLLATE NOCASE",
-                (new_value, old_value),
-            )
+            else:
+                connection.execute(
+                    "UPDATE external_users SET tipo_usuario = ? WHERE tipo_usuario = ? COLLATE NOCASE",
+                    (new_value, current_name),
+                )
             connection.execute(
                 "UPDATE access_logs SET tipo_usuario = ? WHERE tipo_usuario = ? COLLATE NOCASE",
-                (new_value, old_value),
+                (new_value, current_name),
             )
             connection.execute(
                 "UPDATE received_logins SET user_type = ? WHERE user_type = ? COLLATE NOCASE",
-                (new_value, old_value),
+                (new_value, current_name),
             )
             return True
+
+    def set_external_user_type_requires_university(
+        self, name: str, requires_university: bool
+    ) -> bool:
+        return self.update_external_user_type(name, name, requires_university)
+
+    def rename_external_user_type(self, old_name: str, new_name: str) -> bool:
+        normalized = str(old_name or "").strip()
+        if not normalized:
+            return False
+        with self.connection() as connection:
+            row = connection.execute(
+                "SELECT requires_university FROM external_user_types WHERE name = ? COLLATE NOCASE",
+                (normalized,),
+            ).fetchone()
+        if not row:
+            return False
+        return self.update_external_user_type(
+            normalized, new_name, bool(row["requires_university"])
+        )
 
     def delete_external_user_type(self, name: str) -> bool:
         normalized = str(name or "").strip()
