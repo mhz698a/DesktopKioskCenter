@@ -89,3 +89,8 @@ genera el instalador con Inno Setup y publica el archivo
 
 El artefacto de Actions se conserva durante 14 días. La instalación requiere
 permisos de administrador porque configura el certificado y la regla de firewall.
+
+
+## Manual de usuario
+
+Consulta el [Manual de usuario de DesktopKioskCenter](docs/Manual_de_usuario_DesktopKioskCenter.md) para los procedimientos de operación y administración del centro.
