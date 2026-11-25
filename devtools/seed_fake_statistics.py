@@ -1,5 +1,7 @@
 """Genera datos de demostración para probar la pestaña Estadísticas.
 
+Incluye estudiantes externos, público general, alumnos, docentes y administrativos UAQ.
+
 Ejecuta desde la raíz del repositorio:
     python devtools/seed_fake_statistics.py
 
@@ -71,6 +73,8 @@ def seed_demo_data(database: Database, *, days: int = 90, seed: int = 7085) -> i
     rng = random.Random(seed)
     today = datetime.now().date()
     total = 0
+    universities = tuple(database.list_universities()) or UNIVERSITIES
+    faculties = tuple(database.list_faculties()) or FACULTIES
 
     for day_offset in range(days - 1, -1, -1):
         event_date = today - timedelta(days=day_offset)
@@ -98,8 +102,6 @@ def seed_demo_data(database: Database, *, days: int = 90, seed: int = 7085) -> i
             )
 
             category = rng.random()
-            universities = tuple(database.list_universities()) or UNIVERSITIES
-            faculties = tuple(database.list_faculties()) or FACULTIES
             if category < 0.36:
                 user_type = "Estudiante Externo"
                 university = rng.choice(universities)
