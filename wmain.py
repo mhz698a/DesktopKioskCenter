@@ -17,6 +17,7 @@ from tabs.internal_students.build import InternalStudentsTab
 from tabs.internal_staff.backend import InternalStaffBackend
 from tabs.internal_staff.build import InternalStaffTab
 from faculty_catalog_dialog import FacultyCatalogDialog
+from external_user_catalog_dialog import ExternalUserCatalogDialog
 from tabs.received_logins.backend import ReceivedLoginsBackend
 from tabs.received_logins.build import ReceivedLoginsTab
 from tabs.access_logs.backend import AccessLogsBackend
@@ -121,6 +122,9 @@ class MainWindow(QMainWindow):
             self.external_users_tab, self.database, self,
             threadpool=self.threadpool,
         )
+        self.external_users_tab.catalog_management_requested.connect(
+            self.manage_external_user_catalogs
+        )
         self.received_logins_backend = ReceivedLoginsBackend(
             self.received_logins_tab, self.database, self
         )
@@ -192,6 +196,14 @@ class MainWindow(QMainWindow):
         self.internal_staff_backend.refresh_faculty_choices()
         self.internal_students_backend.refresh(selected_id=selected_student_id)
         self.internal_staff_backend.refresh(selected_id=selected_staff_id)
+
+    def manage_external_user_catalogs(self):
+        """Administra tipos externos y universidades compartidos con los kioscos."""
+        selected_user_id = self.external_users_backend._selected_id
+        dialog = ExternalUserCatalogDialog(self.database, self)
+        dialog.exec()
+        self.external_users_backend.refresh_catalog_choices()
+        self.external_users_backend.refresh(selected_id=selected_user_id)
 
     def update_header_clock(self):
         self.clock_label.setText(QTime.currentTime().toString("HH:mm:ss"))
