@@ -2,7 +2,9 @@
 
 import sqlite3
 
-from PyQt6.QtWidgets import (
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets (
+
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -64,7 +66,7 @@ class FacultyCatalogDialog(cQDlg):
         if selected_name:
             item = self.faculty_list.findItems(
                 selected_name,
-                __import__("PyQt6.QtCore", fromlist=["Qt"]).Qt.MatchFlag.MatchFixedString,
+                Qt.MatchFlag.MatchFixedString,
             )
             if item:
                 self.faculty_list.setCurrentItem(item[0])
