@@ -5,8 +5,12 @@ from PyQt6.QtCore import QRegularExpression, pyqtSignal
 from PyQt6.QtGui import QRegularExpressionValidator
 from PyQt6.QtWidgets import QComboBox, QFormLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QVBoxLayout, QWidget
 
-from user_record_dialog import TIPOS_USUARIO, UNIVERSIDADES_QUERETARO
-from user_catalogs import FACULTY_DEFAULTS, INTERNAL_STAFF_TYPES
+from user_catalogs import (
+    EXTERNAL_USER_TYPE_DEFAULTS,
+    FACULTY_DEFAULTS,
+    INTERNAL_STAFF_TYPES,
+    UNIVERSITY_DEFAULTS,
+)
 
 
 class RegisteredUserEditor(QWidget):
@@ -21,6 +25,11 @@ class RegisteredUserEditor(QWidget):
             raise ValueError("kind debe ser 'student', 'staff' o 'external'")
         self.kind = kind
         self.faculties = list(FACULTY_DEFAULTS)
+        self.external_user_types = [name for name, _required in EXTERNAL_USER_TYPE_DEFAULTS]
+        self.universities = list(UNIVERSITY_DEFAULTS)
+        self.university_required_types = {
+            name.casefold() for name, required in EXTERNAL_USER_TYPE_DEFAULTS if required
+        }
         self.inputs = {}
         self._original_record = None
         if kind == "student":
@@ -97,14 +106,16 @@ class RegisteredUserEditor(QWidget):
         if key == "tipo_usuario":
             widget = QComboBox(self)
             widget.addItems(
-                INTERNAL_STAFF_TYPES if self.kind == "staff" else TIPOS_USUARIO
+                INTERNAL_STAFF_TYPES
+                if self.kind == "staff"
+                else self.external_user_types
             )
             widget.setCurrentIndex(-1)
             widget.currentTextChanged.connect(self._on_user_type_changed)
             return widget
         if key == "universidad":
             widget = QComboBox(self)
-            widget.addItems(UNIVERSIDADES_QUERETARO)
+            widget.addItems(self.universities)
             widget.setCurrentIndex(-1)
             widget.setEnabled(False)
             widget.setMinimumWidth(270)
@@ -148,11 +159,57 @@ class RegisteredUserEditor(QWidget):
         combo.setCurrentIndex(combo.findText(selected) if selected else -1)
         combo.blockSignals(False)
 
+    def set_external_catalogs(self, user_types, universities):
+        """Actualiza los catálogos externos manteniendo las selecciones válidas."""
+        if self.kind != "external":
+            return
+        type_combo = self.inputs.get("tipo_usuario")
+        university_combo = self.inputs.get("universidad")
+        selected_type = self._value(type_combo) if type_combo is not None else ""
+        selected_university = (
+            self._value(university_combo) if university_combo is not None else ""
+        )
+        types = [
+            item if isinstance(item, dict)
+            else {"name": str(item), "requires_university": False}
+            for item in (user_types or [])
+        ]
+        self.external_user_types = [
+            str(item.get("name", "")).strip()
+            for item in types
+            if str(item.get("name", "")).strip()
+        ]
+        self.university_required_types = {
+            str(item.get("name", "")).strip().casefold()
+            for item in types if item.get("requires_university")
+        }
+        self.universities = [str(name).strip() for name in (universities or []) if str(name).strip()]
+
+        if type_combo is not None:
+            type_combo.blockSignals(True)
+            type_combo.clear()
+            type_combo.addItems(self.external_user_types)
+            type_combo.setCurrentIndex(
+                type_combo.findText(selected_type) if selected_type else -1
+            )
+            type_combo.blockSignals(False)
+        if university_combo is not None:
+            university_combo.blockSignals(True)
+            university_combo.clear()
+            university_combo.addItems(self.universities)
+            university_combo.setCurrentIndex(
+                university_combo.findText(selected_university)
+                if selected_university else -1
+            )
+            university_combo.blockSignals(False)
+        if type_combo is not None:
+            self._on_user_type_changed(self._value(type_combo))
+
     def _on_user_type_changed(self, user_type):
         university = self.inputs.get("universidad")
         if university is None:
             return
-        enabled = user_type == "Estudiante Externo"
+        enabled = str(user_type or "").strip().casefold() in self.university_required_types
         university.setEnabled(enabled)
         if not enabled:
             university.setCurrentIndex(-1)
@@ -231,7 +288,7 @@ class RegisteredUserEditor(QWidget):
 
     def get_record(self):
         record = {key: self._value(widget) for key, widget in self.inputs.items()}
-        if record.get("tipo_usuario") != "Estudiante Externo":
+        if str(record.get("tipo_usuario", "")).strip().casefold() not in self.university_required_types:
             record["universidad"] = ""
         return record
 
@@ -272,6 +329,10 @@ class RegisteredUserEditor(QWidget):
             if not re.fullmatch(r"[0-9]+", record["numero_empleado"]):
                 return False, "El No. de empleado debe contener únicamente números."
         if self.kind == "external":
-            if record.get("tipo_usuario") == "Estudiante Externo" and not record.get("universidad"):
-                return False, "Selecciona la universidad del estudiante externo."
+            if (
+                record.get("tipo_usuario", "").strip().casefold()
+                in self.university_required_types
+                and not record.get("universidad")
+            ):
+                return False, "El tipo de usuario seleccionado requiere una universidad."
         return True, ""
