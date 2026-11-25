@@ -8,6 +8,7 @@ from tabs.registered_user_editor import RegisteredUserEditor
 
 class ExternalUsersTab(QWidget):
     add_requested = pyqtSignal()
+    catalog_management_requested = pyqtSignal()
     record_selection_changed = pyqtSignal(int)
     save_requested = pyqtSignal()
     delete_requested = pyqtSignal()
@@ -19,6 +20,10 @@ class ExternalUsersTab(QWidget):
         toolbar = cQToolbar("Usuarios Externos Registrados", self)
         add_action = toolbar.addAction("Agregar Usuario")
         add_action.triggered.connect(lambda _checked=False: self.add_requested.emit())
+        catalog_action = toolbar.addAction("Administrar tipos y universidades")
+        catalog_action.triggered.connect(
+            lambda _checked=False: self.catalog_management_requested.emit()
+        )
 
         splitter = QSplitter(Qt.Orientation.Horizontal, self)
         self.table = cQTableW(0, 6, splitter)

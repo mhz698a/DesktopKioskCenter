@@ -1,4 +1,4 @@
-"""Diálogo común para altas de alumnos y usuarios.
+"""Diálogo común para altas de alumnos, docentes, administrativos y usuarios.
 
 El tipo de widget depende de la clave de cada campo. Esto evita duplicar diálogos
 y mantiene las reglas de entrada juntas, antes de enviar datos a SQLite.
@@ -16,57 +16,40 @@ from PyQt6.QtWidgets import (
 )
 
 from css.cQDialogs import cQMsgBox, cQDlg
+from user_catalogs import (
+    EXTERNAL_USER_TYPE_DEFAULTS,
+    FACULTY_DEFAULTS,
+    INTERNAL_STAFF_TYPES,
+    UNIVERSITY_DEFAULTS,
+)
 
-
-FACULTADES_UAQ = [
-    "Facultad de Artes",
-    "Facultad de Ciencias Naturales",
-    "Facultad de Ciencias Políticas y Sociales",
-    "Facultad de Contaduría y Administración",
-    "Facultad de Derecho",
-    "Facultad de Enfermería",
-    "Facultad de Filosofía",
-    "Facultad de Informática",
-    "Facultad de Ingeniería",
-    "Facultad de Lenguas y Letras",
-    "Facultad de Medicina",
-    "Facultad de Psicología y Educación",
-    "Facultad de Química",
-]
-
-UNIVERSIDADES_QUERETARO = [
-    "Instituto Tecnológico de Querétaro (ITQ)",
-    "Universidad Tecnológica de Querétaro (UTEQ)",
-    "Universidad Politécnica de Querétaro (UPQ)",
-    "Universidad Aeronáutica en Querétaro (UNAQ)",
-    "Universidad Nacional Autónoma de México (UNAM - Campus Juriquilla)",
-    "Universidad Tecnológica de San Juan del Río (UTSJR)",
-    "Universidad Politécnica de Santa Rosa Jáuregui (UPSRJ)",
-    "Escuela Normal Superior de Querétaro – ENSQ",
-    "Tecnológico de Monterrey (Campus Querétaro)",
-    "Universidad Anáhuac (Sede Querétaro)",
-    "Universidad Tecnológica de México (UNITEC)",
-    "Universidad Marista de Querétaro",
-    "Universidad Cuauhtémoc (Plantel Querétaro)",
-    "Arkansas State University (Campus Querétaro)",
-    "Universidad de Estudios Avanzados (UNEA)",
-    "Universidad Tecmilenio",
-    "Otra institución externa",
-]
-
-TIPOS_USUARIO = [
-    "Estudiante Externo",
-    "Trabajador Interno",
-    "Público en general",
-]
+UNIVERSIDADES_QUERETARO = list(UNIVERSITY_DEFAULTS)
+TIPOS_USUARIO = [name for name, _required in EXTERNAL_USER_TYPE_DEFAULTS]
 
 
 class UserRecordDialog(cQDlg):
-    def __init__(self, title, fields, parent=None):
+    def __init__(
+        self, title, fields, parent=None, *, faculties=None, user_type_options=None,
+        universities=None, university_required_types=None
+    ):
         super().__init__(parent)
         self.setWindowTitle(title)
         self.setMinimumWidth(520)
         self.fields = fields
+        self.faculties = list(FACULTY_DEFAULTS if faculties is None else faculties)
+        self.user_type_options = list(
+            TIPOS_USUARIO if user_type_options is None else user_type_options
+        )
+        self.universities = list(
+            UNIVERSIDADES_QUERETARO if universities is None else universities
+        )
+        if university_required_types is None:
+            university_required_types = {
+                name for name, required in EXTERNAL_USER_TYPE_DEFAULTS if required
+            }
+        self.university_required_types = {
+            str(name).strip().casefold() for name in university_required_types
+        }
         self.inputs = {}
 
         form = QFormLayout()
@@ -97,19 +80,19 @@ class UserRecordDialog(cQDlg):
         """Crea el widget apropiado según el significado del campo."""
         if key == "facultad":
             combo = QComboBox(self)
-            combo.addItems(FACULTADES_UAQ)
+            combo.addItems(self.faculties)
             combo.setCurrentIndex(-1)
             return combo
 
         if key == "tipo_usuario":
             combo = QComboBox(self)
-            combo.addItems(TIPOS_USUARIO)
+            combo.addItems(self.user_type_options)
             combo.setCurrentIndex(-1)
             return combo
 
         if key == "universidad":
             combo = QComboBox(self)
-            combo.addItems(UNIVERSIDADES_QUERETARO)
+            combo.addItems(self.universities)
             combo.setCurrentIndex(-1)
             combo.setEnabled(False)
             return combo
@@ -128,7 +111,7 @@ class UserRecordDialog(cQDlg):
                 lambda text, field=line_edit: self._format_proper_name(field, text)
             )
 
-        elif key == "expediente":
+        elif key in ("expediente", "numero_empleado"):
             line_edit.setValidator(
                 QRegularExpressionValidator(
                     QRegularExpression(r"^[0-9]*$"),
@@ -161,10 +144,9 @@ class UserRecordDialog(cQDlg):
         if university is None:
             return
 
-        is_external_student = user_type == "Estudiante Externo"
-        university.setEnabled(is_external_student)
-        if not is_external_student:
-            # Para trabajador interno o público general no se conserva universidad.
+        requires_university = str(user_type or "").strip().casefold() in self.university_required_types
+        university.setEnabled(requires_university)
+        if not requires_university:
             university.setCurrentIndex(-1)
 
     def _value(self, widget):
@@ -177,7 +159,7 @@ class UserRecordDialog(cQDlg):
             key: self._value(widget)
             for key, widget in self.inputs.items()
         }
-        if record.get("tipo_usuario") != "Estudiante Externo":
+        if str(record.get("tipo_usuario", "")).strip().casefold() not in self.university_required_types:
             record["universidad"] = ""
         return record
 
@@ -204,7 +186,10 @@ class UserRecordDialog(cQDlg):
                     return
                 continue
 
-            if key == "universidad" and user_type != "Estudiante Externo":
+            if (
+                key == "universidad"
+                and user_type.strip().casefold() not in self.university_required_types
+            ):
                 continue
 
             if not value:
@@ -223,10 +208,11 @@ class UserRecordDialog(cQDlg):
                     self.inputs[key].setFocus()
                     return
 
-            if key == "expediente" and not re.fullmatch(r"[0-9]+", value):
+            if key in ("expediente", "numero_empleado") and not re.fullmatch(r"[0-9]+", value):
+                label_id = "número de empleado" if key == "numero_empleado" else "expediente"
                 cQMsgBox.warning(
                     self, "Validación",
-                    "El expediente debe contener únicamente números.",
+                    f"El {label_id} debe contener únicamente números.",
                 )
                 self.inputs[key].setFocus()
                 return

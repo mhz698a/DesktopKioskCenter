@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 from database import Database
+from user_catalogs import FACULTY_DEFAULTS, UNIVERSITY_DEFAULTS
 
 
 class DatabaseTests(unittest.TestCase):
@@ -217,14 +218,11 @@ class DatabaseTests(unittest.TestCase):
         )
 
         catalog = self.db.get_access_report_catalog()
-        self.assertEqual(
+        self.assertCountEqual(
             catalog["universities"],
-            ["Universidad X", "Universidad Y"],
+            (*UNIVERSITY_DEFAULTS, "Universidad X", "Universidad Y"),
         )
-        self.assertEqual(
-            catalog["faculties"],
-            ["Facultad de Derecho", "Facultad de Informática"],
-        )
+        self.assertCountEqual(catalog["faculties"], FACULTY_DEFAULTS)
 
     def test_manual_student_unlock_records_simulated_registration_and_access(self):
         student_id = self.db.add_internal_student({
@@ -252,6 +250,37 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(access[0]["kiosk_name"], "PC Entrega 1")
         self.assertEqual(access[0]["expediente"], "12345")
         self.assertEqual(access[0]["tipo_usuario"], "Alumno interno")
+
+
+    def test_manual_staff_assignment_records_employee_number_and_staff_type(self):
+        result = self.db.record_manual_user_session(
+            kiosk_name="PC-Staff",
+            client_ip="192.168.1.44",
+            user={
+                "id": 1,
+                "nombres": "Laura",
+                "apellidos": "Gómez",
+                "email": "laura.staff@example.com",
+                "tipo_usuario": "Administrativo",
+                "facultad": "Facultad de Derecho",
+                "numero_empleado": "556677",
+                "expediente": "556677",
+            },
+        )
+        self.assertGreater(result["registration_log_id"], 0)
+        self.assertGreater(result["unlock_log_id"], 0)
+        self.assertGreater(result["access_log_id"], 0)
+
+        received = self.db.list_received_logins()
+        self.assertEqual(received[0]["action"], "unlock_login_simulado")
+        self.assertEqual(received[0]["identifier"], "556677")
+        self.assertEqual(received[0]["user_type"], "Administrativo")
+        self.assertEqual(received[1]["action"], "registro_personal_simulado")
+
+        access = self.db.list_access_logs()[0]
+        self.assertEqual(access["expediente"], "556677")
+        self.assertEqual(access["tipo_usuario"], "Administrativo")
+        self.assertEqual(access["facultad"], "Facultad de Derecho")
 
     def test_manual_public_general_assignment_records_public_session(self):
         user_id = self.db.add_external_user({
@@ -366,6 +395,239 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(len(students), 1)
         self.assertEqual(students[0]["expediente"], "98765")
 
+
+
+    def test_internal_staff_crud_employee_login_identifier_and_unique_number(self):
+        record = {
+            "nombres": "Laura",
+            "apellidos": "Gómez",
+            "email": "laura.staff@example.com",
+            "tipo_usuario": "Docente",
+            "facultad": "Facultad de Ingeniería",
+            "numero_empleado": "778899",
+        }
+        staff_id = self.db.add_internal_staff(record)
+        staff = next(
+            row for row in self.db.list_internal_staff()
+            if row["id"] == staff_id
+        )
+        self.assertEqual(staff["numero_empleado"], "778899")
+        self.assertEqual(staff["expediente"], "778899")
+        self.assertEqual(self.db.find_registered_user("778899")["tipo_usuario"], "Docente")
+        self.assertEqual(
+            self.db.find_registered_user("LAURA.STAFF@example.com")["numero_empleado"],
+            "778899",
+        )
+
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.add_internal_staff({
+                **record,
+                "nombres": "Otra",
+                "email": "otra.staff@example.com",
+            })
+
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.add_internal_student({
+                "nombres": "Alumno",
+                "apellidos": "Con número repetido",
+                "email": "alumno.staff@example.com",
+                "facultad": "Facultad de Artes",
+                "expediente": "778899",
+            })
+
+        self.assertTrue(self.db.update_internal_staff(staff_id, {
+            **record,
+            "tipo_usuario": "Administrativo",
+            "numero_empleado": "990011",
+        }))
+        updated = self.db.find_registered_user("990011")
+        self.assertEqual(updated["tipo_usuario"], "Administrativo")
+        self.assertTrue(self.db.delete_internal_staff(staff_id))
+        self.assertIsNone(self.db.find_registered_user("990011"))
+
+    def test_faculty_catalog_removals_persist_after_database_reinitialization(self):
+        faculty = "Facultad de Química"
+        self.assertIn(faculty, self.db.list_faculties())
+        self.assertTrue(self.db.delete_faculty(faculty))
+        self.db.initialize()
+        self.assertNotIn(faculty, self.db.list_faculties())
+
+    def test_faculty_catalog_add_rename_and_protect_faculties_in_use(self):
+        self.assertIn("Facultad de Artes", self.db.list_faculties())
+        self.assertTrue(self.db.add_faculty("Escuela de Ciencias"))
+        self.assertFalse(self.db.add_faculty("escuela de ciencias"))
+
+        student_id = self.db.add_internal_student({
+            "nombres": "Ana", "apellidos": "Pérez",
+            "email": "ana.faculty@example.com",
+            "facultad": "Facultad de Artes", "expediente": "F001",
+        })
+        staff_id = self.db.add_internal_staff({
+            "nombres": "Luis", "apellidos": "García",
+            "email": "luis.faculty@example.com",
+            "tipo_usuario": "Administrativo",
+            "facultad": "Facultad de Artes", "numero_empleado": "556688",
+        })
+        self.db.record_access_log(
+            nombres="Ana",
+            apellidos="Pérez",
+            expediente="F001",
+            facultad="Facultad de Artes",
+            tipo_usuario="Alumno interno",
+            accessed_at="2026-11-20 09:00:00",
+        )
+
+        self.assertTrue(
+            self.db.rename_faculty("Facultad de Artes", "Facultad de Artes y Diseño")
+        )
+        self.assertEqual(
+            self.db.list_internal_students()[0]["facultad"],
+            "Facultad de Artes y Diseño",
+        )
+        self.assertEqual(
+            next(x for x in self.db.list_internal_staff() if x["id"] == staff_id)["facultad"],
+            "Facultad de Artes y Diseño",
+        )
+        self.assertEqual(
+            self.db.list_access_logs(limit=None)[0]["facultad"],
+            "Facultad de Artes y Diseño",
+        )
+        with self.assertRaises(ValueError):
+            self.db.delete_faculty("Facultad de Artes y Diseño")
+
+        self.assertTrue(self.db.delete_internal_student(student_id))
+        self.assertTrue(self.db.delete_internal_staff(staff_id))
+        self.assertTrue(self.db.delete_faculty("Facultad de Artes y Diseño"))
+        self.assertNotIn("Facultad de Artes y Diseño", self.db.list_faculties())
+
+    def test_external_catalog_deletions_persist_after_database_reinitialization(self):
+        type_name = "Trabajador Interno"
+        university_name = "Otra institución externa"
+        self.assertIn(type_name, [item["name"] for item in self.db.list_external_user_types()])
+        self.assertIn(university_name, self.db.list_universities())
+
+        self.assertTrue(self.db.delete_external_user_type(type_name))
+        self.assertTrue(self.db.delete_university(university_name))
+        self.db.initialize()
+
+        self.assertNotIn(type_name, [item["name"] for item in self.db.list_external_user_types()])
+        self.assertNotIn(university_name, self.db.list_universities())
+
+    def test_external_user_type_and_university_catalog_crud_updates_history(self):
+        self.assertIn(
+            {"name": "Estudiante Externo", "requires_university": True},
+            self.db.list_external_user_types(),
+        )
+        self.assertTrue(
+            self.db.add_external_user_type("Proveedor visitante", True)
+        )
+        self.assertTrue(self.db.add_university("Universidad de Prueba"))
+
+        user_id = self.db.add_external_user({
+            "nombres": "Paula",
+            "apellidos": "Ejemplo",
+            "email": "paula.proveedor@example.com",
+            "tipo_usuario": "Proveedor visitante",
+            "universidad": "Universidad de Prueba",
+        })
+        self.db.record_access_log(
+            nombres="Paula",
+            apellidos="Ejemplo",
+            universidad_externa="Universidad de Prueba",
+            tipo_usuario="Proveedor visitante",
+            accessed_at="2026-11-22 12:00:00",
+        )
+        self.db.record_received_login(
+            kiosk_name="PC demo",
+            client_ip="192.0.2.20",
+            identifier="paula.proveedor@example.com",
+            user_type="Proveedor visitante",
+            action="registro_externo",
+            result="registrado",
+            message="Prueba",
+        )
+
+        self.assertTrue(
+            self.db.rename_external_user_type("Proveedor visitante", "Proveedor externo")
+        )
+        self.assertTrue(
+            self.db.rename_university("Universidad de Prueba", "Universidad de Prueba Renombrada")
+        )
+        updated = next(
+            item for item in self.db.list_external_users() if item["id"] == user_id
+        )
+        self.assertEqual(updated["tipo_usuario"], "Proveedor externo")
+        self.assertEqual(updated["universidad"], "Universidad de Prueba Renombrada")
+        self.assertEqual(
+            self.db.list_access_logs()[0]["universidad_externa"],
+            "Universidad de Prueba Renombrada",
+        )
+        self.assertEqual(
+            self.db.list_received_logins()[0]["user_type"],
+            "Proveedor externo",
+        )
+        report = self.db.generate_access_report("2026-11-22", "2026-11-22", "day")
+        self.assertIn(
+            ("Universidad", "Universidad de Prueba Renombrada", 1),
+            {(row["origin"], row["source"], row["total"]) for row in report},
+        )
+        self.assertIn(
+            "Universidad de Prueba Renombrada",
+            self.db.get_access_report_catalog()["universities"],
+        )
+
+        with self.assertRaises(ValueError):
+            self.db.delete_external_user_type("Proveedor externo")
+        with self.assertRaises(ValueError):
+            self.db.delete_university("Universidad de Prueba Renombrada")
+
+    def test_external_types_without_university_are_saved_without_university(self):
+        self.db.add_external_user_type("Visitante sin afiliación", False)
+        user_id = self.db.add_external_user({
+            "nombres": "Elena",
+            "apellidos": "Prueba",
+            "email": "elena.visitante@example.com",
+            "tipo_usuario": "Visitante sin afiliación",
+            "universidad": "No debe guardarse",
+        })
+        user = next(
+            item for item in self.db.list_external_users() if item["id"] == user_id
+        )
+        self.assertEqual(user["universidad"], "")
+        with self.assertRaises(ValueError):
+            self.db.set_external_user_type_requires_university(
+                "Visitante sin afiliación", True
+            )
+
+    def test_statistics_catalog_includes_faculties_without_registered_users(self):
+        self.db.add_faculty("Facultad de Arquitectura")
+        catalog = self.db.get_access_report_catalog()
+        self.assertIn("Facultad de Arquitectura", catalog["faculties"])
+
+    def test_statistics_include_teachers_and_administrators_by_faculty(self):
+        self.db.record_access_log(
+            nombres="Docente", apellidos="Ejemplo",
+            expediente="1001", facultad="Facultad de Informática",
+            tipo_usuario="Docente",
+            accessed_at="2026-11-21 09:00:00",
+        )
+        self.db.record_access_log(
+            nombres="Administrativa", apellidos="Ejemplo",
+            expediente="1002", facultad="Facultad de Derecho",
+            tipo_usuario="Administrativo",
+            accessed_at="2026-11-21 10:00:00",
+        )
+        rows = self.db.generate_access_report("2026-11-21", "2026-11-21", "day")
+        self.assertEqual(
+            {(row["origin"], row["source"], row["total"]) for row in rows},
+            {
+                ("UAQ", "Facultad de Informática", 1),
+                ("UAQ", "Facultad de Derecho", 1),
+            },
+        )
+        catalog = self.db.get_access_report_catalog()
+        self.assertIn("Facultad de Informática", catalog["faculties"])
+        self.assertIn("Facultad de Derecho", catalog["faculties"])
 
 if __name__ == "__main__":
     unittest.main()

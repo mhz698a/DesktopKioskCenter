@@ -5,7 +5,12 @@ from PyQt6.QtCore import QRegularExpression, pyqtSignal
 from PyQt6.QtGui import QRegularExpressionValidator
 from PyQt6.QtWidgets import QComboBox, QFormLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QVBoxLayout, QWidget
 
-from user_record_dialog import FACULTADES_UAQ, TIPOS_USUARIO, UNIVERSIDADES_QUERETARO
+from user_catalogs import (
+    EXTERNAL_USER_TYPE_DEFAULTS,
+    FACULTY_DEFAULTS,
+    INTERNAL_STAFF_TYPES,
+    UNIVERSITY_DEFAULTS,
+)
 
 
 class RegisteredUserEditor(QWidget):
@@ -16,19 +21,35 @@ class RegisteredUserEditor(QWidget):
 
     def __init__(self, kind: str, parent=None):
         super().__init__(parent)
-        if kind not in ("student", "external"):
-            raise ValueError("kind debe ser 'student' o 'external'")
+        if kind not in ("student", "external", "staff"):
+            raise ValueError("kind debe ser 'student', 'staff' o 'external'")
         self.kind = kind
+        self.faculties = list(FACULTY_DEFAULTS)
+        self.external_user_types = [name for name, _required in EXTERNAL_USER_TYPE_DEFAULTS]
+        self.universities = list(UNIVERSITY_DEFAULTS)
+        self.university_required_types = {
+            name.casefold() for name, required in EXTERNAL_USER_TYPE_DEFAULTS if required
+        }
         self.inputs = {}
         self._original_record = None
-        fields = (
-            [("nombres", "Nombres"), ("apellidos", "Apellidos"),
-             ("email", "Correo electrónico"), ("facultad", "Facultad"), ("expediente", "Expediente")]
-            if kind == "student" else
-            [("nombres", "Nombres"), ("apellidos", "Apellidos"),
-             ("email", "Email"), ("tipo_usuario", "Tipo de usuario"),
-             ("universidad", "Universidad")]
-        )
+        if kind == "student":
+            fields = [
+                ("nombres", "Nombres"), ("apellidos", "Apellidos"),
+                ("email", "Correo electrónico"), ("facultad", "Facultad"),
+                ("expediente", "Expediente"),
+            ]
+        elif kind == "staff":
+            fields = [
+                ("nombres", "Nombres"), ("apellidos", "Apellidos"),
+                ("email", "Correo electrónico"), ("tipo_usuario", "Tipo de personal"),
+                ("facultad", "Facultad"), ("numero_empleado", "No. de empleado"),
+            ]
+        else:
+            fields = [
+                ("nombres", "Nombres"), ("apellidos", "Apellidos"),
+                ("email", "Email"), ("tipo_usuario", "Tipo de usuario"),
+                ("universidad", "Universidad"),
+            ]
         form = QFormLayout()
         for key, label in fields:
             widget = self._create_field(key)
@@ -79,18 +100,22 @@ class RegisteredUserEditor(QWidget):
     def _create_field(self, key):
         if key == "facultad":
             widget = QComboBox(self)
-            widget.addItems(FACULTADES_UAQ)
+            widget.addItems(self.faculties)
             widget.setCurrentIndex(-1)
             return widget
         if key == "tipo_usuario":
             widget = QComboBox(self)
-            widget.addItems(TIPOS_USUARIO)
+            widget.addItems(
+                INTERNAL_STAFF_TYPES
+                if self.kind == "staff"
+                else self.external_user_types
+            )
             widget.setCurrentIndex(-1)
             widget.currentTextChanged.connect(self._on_user_type_changed)
             return widget
         if key == "universidad":
             widget = QComboBox(self)
-            widget.addItems(UNIVERSIDADES_QUERETARO)
+            widget.addItems(self.universities)
             widget.setCurrentIndex(-1)
             widget.setEnabled(False)
             widget.setMinimumWidth(270)
@@ -101,7 +126,7 @@ class RegisteredUserEditor(QWidget):
         if key in ("nombres", "apellidos"):
             widget.setValidator(QRegularExpressionValidator(QRegularExpression(r"^[\p{L} ]*$"), widget))
             widget.textEdited.connect(lambda text, line=widget: self._format_proper_name(line, text))
-        elif key == "expediente":
+        elif key in ("expediente", "numero_empleado"):
             widget.setValidator(QRegularExpressionValidator(QRegularExpression(r"^[0-9]*$"), widget))
         return widget
 
@@ -121,11 +146,70 @@ class RegisteredUserEditor(QWidget):
         finally:
             field.blockSignals(False)
 
+    def set_faculties(self, faculties):
+        """Actualiza el combo sin perder la selección actual."""
+        combo = self.inputs.get("facultad")
+        if combo is None:
+            return
+        selected = self._value(combo)
+        self.faculties = list(faculties or [])
+        combo.blockSignals(True)
+        combo.clear()
+        combo.addItems(self.faculties)
+        combo.setCurrentIndex(combo.findText(selected) if selected else -1)
+        combo.blockSignals(False)
+
+    def set_external_catalogs(self, user_types, universities):
+        """Actualiza los catálogos externos manteniendo las selecciones válidas."""
+        if self.kind != "external":
+            return
+        type_combo = self.inputs.get("tipo_usuario")
+        university_combo = self.inputs.get("universidad")
+        selected_type = self._value(type_combo) if type_combo is not None else ""
+        selected_university = (
+            self._value(university_combo) if university_combo is not None else ""
+        )
+        types = [
+            item if isinstance(item, dict)
+            else {"name": str(item), "requires_university": False}
+            for item in (user_types or [])
+        ]
+        self.external_user_types = [
+            str(item.get("name", "")).strip()
+            for item in types
+            if str(item.get("name", "")).strip()
+        ]
+        self.university_required_types = {
+            str(item.get("name", "")).strip().casefold()
+            for item in types if item.get("requires_university")
+        }
+        self.universities = [str(name).strip() for name in (universities or []) if str(name).strip()]
+
+        if type_combo is not None:
+            type_combo.blockSignals(True)
+            type_combo.clear()
+            type_combo.addItems(self.external_user_types)
+            type_combo.setCurrentIndex(
+                type_combo.findText(selected_type) if selected_type else -1
+            )
+            type_combo.blockSignals(False)
+        if university_combo is not None:
+            university_combo.blockSignals(True)
+            university_combo.clear()
+            university_combo.addItems(self.universities)
+            university_combo.setCurrentIndex(
+                university_combo.findText(selected_university)
+                if selected_university else -1
+            )
+            university_combo.blockSignals(False)
+        if type_combo is not None:
+            self._on_user_type_changed(self._value(type_combo))
+
     def _on_user_type_changed(self, user_type):
         university = self.inputs.get("universidad")
         if university is None:
             return
-        enabled = user_type == "Estudiante Externo"
+        enabled = str(user_type or "").strip().casefold() in self.university_required_types
         university.setEnabled(enabled)
         if not enabled:
             university.setCurrentIndex(-1)
@@ -139,7 +223,7 @@ class RegisteredUserEditor(QWidget):
         self._original_record = dict(record)
         self.setEnabled(True)
         self._assignment_eligible = (
-            self.kind == "student"
+            self.kind in ("student", "staff")
             or str(record.get("tipo_usuario", "")).strip() == "Público en general"
         )
         self.assignment_widget.setVisible(self._assignment_eligible)
@@ -186,7 +270,7 @@ class RegisteredUserEditor(QWidget):
     def clear_record(self):
         self._original_record = None
         self._assignment_eligible = False
-        self.assignment_widget.setVisible(self.kind == "student")
+        self.assignment_widget.setVisible(self.kind in ("student", "staff"))
         self._update_assignment_button_state()
         for widget in self.inputs.values():
             if isinstance(widget, QComboBox):
@@ -204,19 +288,30 @@ class RegisteredUserEditor(QWidget):
 
     def get_record(self):
         record = {key: self._value(widget) for key, widget in self.inputs.items()}
-        if record.get("tipo_usuario") != "Estudiante Externo":
+        if str(record.get("tipo_usuario", "")).strip().casefold() not in self.university_required_types:
             record["universidad"] = ""
         return record
 
     def validate_record(self):
         record = self.get_record()
-        required = (
-            [("nombres", "Nombres"), ("apellidos", "Apellidos"), ("email", "Correo electrónico"),
-             ("facultad", "Facultad"), ("expediente", "Expediente")]
-            if self.kind == "student" else
-            [("nombres", "Nombres"), ("apellidos", "Apellidos"),
-             ("tipo_usuario", "Tipo de usuario")]
-        )
+        if self.kind == "student":
+            required = [
+                ("nombres", "Nombres"), ("apellidos", "Apellidos"),
+                ("email", "Correo electrónico"), ("facultad", "Facultad"),
+                ("expediente", "Expediente"),
+            ]
+        elif self.kind == "staff":
+            required = [
+                ("nombres", "Nombres"), ("apellidos", "Apellidos"),
+                ("email", "Correo electrónico"), ("tipo_usuario", "Tipo de personal"),
+                ("facultad", "Facultad"), ("numero_empleado", "No. de empleado"),
+            ]
+        else:
+            required = [
+                ("nombres", "Nombres"), ("apellidos", "Apellidos"),
+                ("email", "Email"), ("tipo_usuario", "Tipo de usuario"),
+            ]
+
         for key, label in required:
             if not record.get(key):
                 return False, f"El campo «{label}» es obligatorio."
@@ -225,13 +320,19 @@ class RegisteredUserEditor(QWidget):
                 return False, f"El campo «{label}» solo permite letras y espacios."
         if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", record["email"]):
             return False, "Ingresa una dirección de correo electrónico válida."
+
         if self.kind == "student" and not re.fullmatch(r"[0-9]+", record["expediente"]):
             return False, "El expediente debe contener únicamente números."
+        if self.kind == "staff":
+            if record["tipo_usuario"] not in INTERNAL_STAFF_TYPES:
+                return False, "Selecciona Docente o Administrativo."
+            if not re.fullmatch(r"[0-9]+", record["numero_empleado"]):
+                return False, "El No. de empleado debe contener únicamente números."
         if self.kind == "external":
-            if not record.get("email"):
-                return False, "El campo «Email» es obligatorio para todos los usuarios externos."
-            if record.get("email") and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", record["email"]):
-                return False, "Ingresa una dirección de email válida."
-            if record.get("tipo_usuario") == "Estudiante Externo" and not record.get("universidad"):
-                return False, "Selecciona la universidad del estudiante externo."
+            if (
+                record.get("tipo_usuario", "").strip().casefold()
+                in self.university_required_types
+                and not record.get("universidad")
+            ):
+                return False, "El tipo de usuario seleccionado requiere una universidad."
         return True, ""

@@ -11,6 +11,7 @@ from tabs.registered_user_editor import RegisteredUserEditor
 
 class InternalStudentsTab(QWidget):
     add_requested = pyqtSignal()
+    faculty_catalog_requested = pyqtSignal()
     record_selection_changed = pyqtSignal(int)
     save_requested = pyqtSignal()
     delete_requested = pyqtSignal()
@@ -22,6 +23,10 @@ class InternalStudentsTab(QWidget):
         toolbar = cQToolbar("Alumnos Internos Registrados", self)
         add_action = toolbar.addAction("Agregar Alumno")
         add_action.triggered.connect(lambda _checked=False: self.add_requested.emit())
+        faculty_action = toolbar.addAction("Administrar facultades")
+        faculty_action.triggered.connect(
+            lambda _checked=False: self.faculty_catalog_requested.emit()
+        )
 
         splitter = QSplitter(Qt.Orientation.Horizontal, self)
         self.table = cQTableW(0, 6, splitter)

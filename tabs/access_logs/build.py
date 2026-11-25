@@ -18,7 +18,7 @@ class AccessLogsTab(QWidget):
         self.table = cQTableW(0, 9, self)
         self.table.setHorizontalHeaderLabels([
             "Índice", "Fecha Hora de Acceso", "Equipo", "Nombres", "Apellidos",
-            "Expediente", "Facultad", "Universidad Externa", "Tipo de Usuario",
+            "Expediente / No. de empleado", "Facultad", "Universidad Externa", "Tipo de Usuario",
         ])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         layout.addWidget(toolbar)

@@ -368,10 +368,12 @@ class EquipmentBackend(QObject):
 
         answer = cQMsgBox.question(
             self.view,
-            "Enviar IP a todas las PCs",
-            f"Se enviará la IP del servidor ({server_ip}) a las "
-            f"{len(self.kiosks)} PCs registradas. Las que no respondan se reportarán "
-            "como fallidas. ¿Deseas continuar?",
+            "Enviar IP del servidor central a todas las PCs",
+            f"Se enviará la IP de este servidor central ({server_ip}) a las "
+            f"{len(self.kiosks)} PCs/kioscos configurados. Cada equipo guardará esta dirección "
+            "para comunicarse con DesktopKioskCenter y reportar su estado y accesos. "
+            "Esta acción no cambia la IP de red de las PCs. Los equipos que no respondan "
+            "se reportarán como fallidos. ¿Deseas continuar?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )

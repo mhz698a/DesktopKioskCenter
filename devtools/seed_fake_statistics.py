@@ -1,5 +1,7 @@
 """Genera datos de demostración para probar la pestaña Estadísticas.
 
+Incluye estudiantes externos, público general, alumnos, docentes y administrativos UAQ.
+
 Ejecuta desde la raíz del repositorio:
     python devtools/seed_fake_statistics.py
 
@@ -67,10 +69,12 @@ def remove_previous_demo_data(database: Database) -> tuple[int, int]:
 
 
 def seed_demo_data(database: Database, *, days: int = 90, seed: int = 7085) -> int:
-    """Genera accesos diarios de tres procedencias para el rango solicitado."""
+    """Genera accesos diarios de varias procedencias, incluidos docentes y administrativos."""
     rng = random.Random(seed)
     today = datetime.now().date()
     total = 0
+    universities = tuple(database.list_universities()) or UNIVERSITIES
+    faculties = tuple(database.list_faculties()) or FACULTIES
 
     for day_offset in range(days - 1, -1, -1):
         event_date = today - timedelta(days=day_offset)
@@ -98,27 +102,37 @@ def seed_demo_data(database: Database, *, days: int = 90, seed: int = 7085) -> i
             )
 
             category = rng.random()
-            if category < 0.44:
+            if category < 0.36:
                 user_type = "Estudiante Externo"
-                university = rng.choice(UNIVERSITIES)
+                university = rng.choice(universities)
                 faculty = ""
-                expediente = ""
-            elif category < 0.76:
+                identifier = email
+            elif category < 0.51:
                 user_type = "Público en general"
                 university = ""
                 faculty = ""
-                expediente = ""
+                identifier = email
+            elif category < 0.66:
+                user_type = "Docente"
+                university = ""
+                faculty = rng.choice(faculties)
+                identifier = str(rng.randint(100000, 999999))
+            elif category < 0.78:
+                user_type = "Administrativo"
+                university = ""
+                faculty = rng.choice(faculties)
+                identifier = str(rng.randint(100000, 999999))
             else:
                 user_type = "Alumno interno"
                 university = ""
-                faculty = rng.choice(FACULTIES)
-                expediente = str(rng.randint(100000, 999999))
+                faculty = rng.choice(faculties)
+                identifier = str(rng.randint(100000, 999999))
 
             database.record_access_log(
                 kiosk_name=kiosk_name,
                 nombres=first_name,
                 apellidos=last_name,
-                expediente=expediente,
+                expediente=identifier if user_type in ("Alumno interno", "Docente", "Administrativo") else "",
                 facultad=faculty,
                 universidad_externa=university,
                 tipo_usuario=user_type,
@@ -128,7 +142,7 @@ def seed_demo_data(database: Database, *, days: int = 90, seed: int = 7085) -> i
             database.record_received_login(
                 kiosk_name=kiosk_name,
                 client_ip=client_ip,
-                identifier=email,
+                identifier=identifier,
                 user_type=user_type,
                 action="unlock_login",
                 result="permitido",

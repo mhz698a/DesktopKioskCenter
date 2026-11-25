@@ -44,6 +44,15 @@ Contiene `id`, `nombres`, `apellidos`, `email`, `tipo_usuario`, `universidad` y 
 
 Al abrir una base existente, `Database.initialize()` añade `email TEXT NOT NULL DEFAULT ''` a ambas tablas si la columna aún no existe, por lo que los registros anteriores conservan sus datos y reciben email vacío. Los registros heredados deben completarse con un email válido desde su panel de edición. Los índices y triggers de SQLite impiden reutilizar un correo entre ambas tablas.
 
+### Catálogos administrables de usuarios externos
+
+- `external_user_types`: nombre del tipo de usuario y bandera `requires_university`.
+- `universities`: nombres disponibles en el combo de universidad.
+
+En Windows ambos catálogos se guardan en `%APPDATA%\\DesktopKioskCenter\\desktopkioskcenter.sqlite3`, junto con alumnos, usuarios y logs. Los valores predeterminados se insertan una sola vez mediante `schema_migrations`; eliminar una opción no provoca que reaparezca al iniciar. La inicialización también importa tipos y universidades que ya estén presentes en registros anteriores.
+
+Desde **Usuarios Externos Registrados > Administrar tipos y universidades** se pueden agregar, renombrar y eliminar opciones. Cada tipo indica si requiere universidad, lo que controla la visibilidad y validación del combo en DesktopKiosk. Renombrar propaga el cambio a los usuarios y logs; eliminar queda bloqueado mientras haya registros o historial dependiente de la opción. El servidor publica los catálogos mediante `GET /api/v1/catalog/external-users`; el kiosco los consulta al abrir el formulario de externos.
+
 ### `received_logins` — Logs de peticiones
 
 Almacena un evento por solicitud que procese el futuro backend central. Incluye fecha y hora, equipo, IP cliente, identificador, tipo de usuario, acción, resultado y mensaje. La pestaña **Logs de peticiones** lee esta tabla y **Contar Totales** hace conteos SQL por total, tipo de usuario y resultado.
@@ -96,7 +105,7 @@ Al borrar todas las PCs configuradas, se vacía `kiosks.json` y se eliminan de `
 
 ### Datos de demostración de estadísticas
 
-El script local `devtools/seed_fake_statistics.py` genera accesos y logs de peticiones de demostración para las universidades, el público en general y alumnos UAQ. Se ejecuta desde la raíz del repositorio con `python devtools/seed_fake_statistics.py`. El script reemplaza únicamente sus propios registros, identificados por el prefijo `DEMO_STATS:`, y conserva los registros reales. El directorio `devtools` está excluido de PyInstaller y no forma parte del instalador de producción.
+El script local `devtools/seed_fake_statistics.py` genera accesos y logs de peticiones de demostración para estudiantes externos, público en general, alumnos UAQ, docentes y administrativos. Los docentes y administrativos reciben una facultad y un número de empleado ficticio; no se insertan cuentas en las tablas de usuarios. El script toma las facultades y universidades de los catálogos de AppData cuando existen. Se ejecuta desde la raíz del repositorio con `python devtools/seed_fake_statistics.py`. Al repetirse, reemplaza únicamente sus propios registros, identificados por el prefijo `DEMO_STATS:`, y conserva los accesos y logs reales. El directorio `devtools` está excluido de PyInstaller y no forma parte del instalador de producción.
 
 ### `schema_migrations`
 

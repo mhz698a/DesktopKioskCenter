@@ -14,6 +14,10 @@ from tabs.external_users.backend import ExternalUsersBackend
 from tabs.external_users.build import ExternalUsersTab
 from tabs.internal_students.backend import InternalStudentsBackend
 from tabs.internal_students.build import InternalStudentsTab
+from tabs.internal_staff.backend import InternalStaffBackend
+from tabs.internal_staff.build import InternalStaffTab
+from faculty_catalog_dialog import FacultyCatalogDialog
+from external_user_catalog_dialog import ExternalUserCatalogDialog
 from tabs.received_logins.backend import ReceivedLoginsBackend
 from tabs.received_logins.build import ReceivedLoginsTab
 from tabs.access_logs.backend import AccessLogsBackend
@@ -76,6 +80,7 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget(root)
         self.equipment_tab = EquipmentTab(self.tabs)
         self.internal_students_tab = InternalStudentsTab(self.tabs)
+        self.internal_staff_tab = InternalStaffTab(self.tabs)
         self.external_users_tab = ExternalUsersTab(self.tabs)
         self.received_logins_tab = ReceivedLoginsTab(self.tabs)
         self.access_logs_tab = AccessLogsTab(self.tabs)
@@ -85,6 +90,9 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.equipment_tab, "Equipos")
         self.tabs.addTab(
             self.internal_students_tab, "Alumnos Internos Registrados"
+        )
+        self.tabs.addTab(
+            self.internal_staff_tab, "Docentes y administrativos registrados"
         )
         self.tabs.addTab(
             self.external_users_tab, "Usuarios Externos Registrados"
@@ -100,9 +108,22 @@ class MainWindow(QMainWindow):
             self.internal_students_tab, self.database, self,
             threadpool=self.threadpool,
         )
+        self.internal_staff_backend = InternalStaffBackend(
+            self.internal_staff_tab, self.database, self,
+            threadpool=self.threadpool,
+        )
+        self.internal_students_tab.faculty_catalog_requested.connect(
+            self.manage_faculties
+        )
+        self.internal_staff_tab.faculty_catalog_requested.connect(
+            self.manage_faculties
+        )
         self.external_users_backend = ExternalUsersBackend(
             self.external_users_tab, self.database, self,
             threadpool=self.threadpool,
+        )
+        self.external_users_tab.catalog_management_requested.connect(
+            self.manage_external_user_catalogs
         )
         self.received_logins_backend = ReceivedLoginsBackend(
             self.received_logins_tab, self.database, self
@@ -146,11 +167,14 @@ class MainWindow(QMainWindow):
                 self.internal_students_backend.refresh(preserve_editor=True)
                 self.internal_students_backend.refresh_equipment_choices()
             elif index == 2:
+                self.internal_staff_backend.refresh(preserve_editor=True)
+                self.internal_staff_backend.refresh_equipment_choices()
+            elif index == 3:
                 self.external_users_backend.refresh(preserve_editor=True)
                 self.external_users_backend.refresh_equipment_choices()
-            elif index == 3:
-                self.received_logins_backend.refresh()
             elif index == 4:
+                self.received_logins_backend.refresh()
+            elif index == 5:
                 self.access_logs_backend.refresh()
         except Exception:
             # Un fallo transitorio de lectura no debe cerrar la interfaz; el siguiente
@@ -159,6 +183,27 @@ class MainWindow(QMainWindow):
             logging.getLogger(__name__).exception(
                 "No se pudo actualizar la pestaña de datos desde SQLite."
             )
+
+    def manage_faculties(self):
+        """Abre el catálogo común y sincroniza los combos de alumnos y personal."""
+        selected_student_id = self.internal_students_backend._selected_id
+        selected_staff_id = self.internal_staff_backend._selected_id
+        dialog = FacultyCatalogDialog(self.database, self)
+        dialog.exec()
+        # La edición se persiste inmediatamente. Recarga primero los combos y
+        # luego el registro seleccionado para reflejar un posible renombrado.
+        self.internal_students_backend.refresh_faculty_choices()
+        self.internal_staff_backend.refresh_faculty_choices()
+        self.internal_students_backend.refresh(selected_id=selected_student_id)
+        self.internal_staff_backend.refresh(selected_id=selected_staff_id)
+
+    def manage_external_user_catalogs(self):
+        """Administra tipos externos y universidades compartidos con los kioscos."""
+        selected_user_id = self.external_users_backend._selected_id
+        dialog = ExternalUserCatalogDialog(self.database, self)
+        dialog.exec()
+        self.external_users_backend.refresh_catalog_choices()
+        self.external_users_backend.refresh(selected_id=selected_user_id)
 
     def update_header_clock(self):
         self.clock_label.setText(QTime.currentTime().toString("HH:mm:ss"))
@@ -209,10 +254,12 @@ class MainWindow(QMainWindow):
         self.data_refresh_timer.stop()
         self.equipment_backend.stop()
         self.internal_students_backend.stop()
+        self.internal_staff_backend.stop()
         self.external_users_backend.stop()
         self.threadpool.clear()
         self.threadpool.waitForDone()
         self.equipment_backend.release_workers()
         self.internal_students_backend.release_workers()
+        self.internal_staff_backend.release_workers()
         self.external_users_backend.release_workers()
         event.accept()

@@ -28,6 +28,7 @@ class ExternalUsersBackend(QObject):
         view.delete_requested.connect(self.delete_user)
         view.revert_requested.connect(self.revert_user)
         self.refresh()
+        self.refresh_catalog_choices()
         self.assignment_controller = UserAssignmentController(
             view.editor_panel,
             database,
@@ -72,6 +73,15 @@ class ExternalUsersBackend(QObject):
             return None
         return self._records_by_id.get(self._selected_id)
 
+    def refresh_catalog_choices(self):
+        """Sincroniza el editor con los catálogos persistidos en AppData."""
+        if self._closing:
+            return
+        self.view.editor_panel.set_external_catalogs(
+            self.database.list_external_user_types(),
+            self.database.list_universities(),
+        )
+
     def refresh_equipment_choices(self):
         if not self._closing:
             self.assignment_controller.refresh_equipment_choices()
@@ -84,7 +94,17 @@ class ExternalUsersBackend(QObject):
         self.assignment_controller.release_workers()
 
     def add_user(self):
-        dialog = UserRecordDialog("Agregar Usuario", FIELDS, self.view)
+        user_types = self.database.list_external_user_types()
+        dialog = UserRecordDialog(
+            "Agregar Usuario",
+            FIELDS,
+            self.view,
+            user_type_options=[item["name"] for item in user_types],
+            universities=self.database.list_universities(),
+            university_required_types=[
+                item["name"] for item in user_types if item["requires_university"]
+            ],
+        )
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         try:
@@ -92,7 +112,7 @@ class ExternalUsersBackend(QObject):
         except sqlite3.IntegrityError:
             cQMsgBox.warning(self.view, "Email duplicado", "Ya existe un usuario con ese email.")
             return
-        except (sqlite3.Error, OSError) as exc:
+        except (sqlite3.Error, OSError, ValueError) as exc:
             cQMsgBox.critical(self.view, "Error de base de datos", f"No se pudo guardar el usuario en SQLite.\n\n{exc}")
             return
         self.refresh(selected_id=new_id)
@@ -109,7 +129,7 @@ class ExternalUsersBackend(QObject):
         except sqlite3.IntegrityError:
             cQMsgBox.warning(self.view, "Email duplicado", "Ya existe otro usuario con ese email.")
             return
-        except (sqlite3.Error, OSError) as exc:
+        except (sqlite3.Error, OSError, ValueError) as exc:
             cQMsgBox.critical(self.view, "Error de base de datos", f"No se pudieron guardar los cambios.\n\n{exc}")
             return
         if updated:
@@ -130,7 +150,7 @@ class ExternalUsersBackend(QObject):
             return
         try:
             self.database.delete_external_user(self._selected_id)
-        except (sqlite3.Error, OSError) as exc:
+        except (sqlite3.Error, OSError, ValueError) as exc:
             cQMsgBox.critical(self.view, "Error de base de datos", f"No se pudo eliminar el usuario.\n\n{exc}")
             return
         self._selected_id = None
