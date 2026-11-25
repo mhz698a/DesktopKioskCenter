@@ -66,11 +66,13 @@ class UserAssignmentController(QObject):
 
         user = dict(user)
         user_type = str(user.get("tipo_usuario") or "Alumno interno").strip()
-        if user_type not in ("Alumno interno", "Público en general"):
+        if user_type not in (
+            "Alumno interno", "Docente", "Administrativo", "Público en general"
+        ):
             cQMsgBox.warning(
                 self.editor, "Tipo de usuario no permitido",
-                "La asignación de sesión está disponible para alumnos internos "
-                "y público en general.",
+                "La asignación de sesión está disponible para alumnos internos, "
+                "docentes, administrativos y público en general.",
             )
             return
 
@@ -82,7 +84,9 @@ class UserAssignmentController(QObject):
             )
             return
 
-        identifier = str(user.get("email") or user.get("expediente") or "").strip()
+        identifier = str(
+            user.get("numero_empleado") or user.get("email") or user.get("expediente") or ""
+        ).strip()
         display_name = " ".join(
             part for part in (
                 str(user.get("nombres", "") or "").strip(),
