@@ -59,6 +59,12 @@ El campo `data.usuario` (o `data.identificador`) debe contener el correo electr�
 - Registro nuevo: HTTP 201, `unlocked: true` y `Registro de alumno completado con éxito.`.
 - Nombres y apellidos admiten letras y espacios; expediente solo dígitos.
 
+## Catálogos externos — `GET /api/v1/catalog/external-users`
+
+El Centro publica las opciones administrables que utilizan los formularios de DesktopKiosk. La respuesta contiene `user_types` (cada tipo incluye `name` y `requires_university`) y `universities`. La opción **Administrar tipos y universidades**, dentro de Usuarios Externos Registrados, permite agregar, renombrar y eliminar ambos catálogos. Los cambios se guardan en la base SQLite de AppData; los kioscos consultan la API y reciben el catálogo vigente al abrir el formulario.
+
+La bandera `requires_university` determina si el formulario debe pedir una universidad para ese tipo. No se permite eliminar tipos o universidades que todavía estén asociados a usuarios o al historial. Renombrar una opción actualiza los registros relacionados.
+
 ## Registro externo — `POST /api/v1/users/register/externo`
 
 Estudiante externo:
@@ -90,7 +96,7 @@ Público en general:
 }
 ```
 
-El campo `tipo-usuario` debe indicar el tipo real de usuario: `estudiante`/`Estudiante Externo`, `Trabajador Interno` o `Público en general`. **Email es obligatorio para todos los tipos de usuario** (alumnos internos, estudiantes externos, trabajadores internos y público en general), debe tener un formato válido y no puede estar registrado previamente en ninguna de las tablas de usuarios. La universidad es obligatoria para estudiantes externos y no aplica a trabajadores internos ni público en general.
+El campo `tipo-usuario` debe coincidir con un tipo configurado en el catálogo central. Se conservan los alias anteriores para estudiante, trabajador interno y público en general; los tipos agregados desde DesktopKioskCenter se envían con su nombre completo. **Email es obligatorio para todos los tipos de usuario externos**, debe tener formato válido y no puede estar registrado previamente en otra categoría. La universidad se exige únicamente cuando el tipo seleccionado tiene `requires_university: true`; los tipos que no la requieren guardan ese campo vacío.
 
 - Registro duplicado: HTTP 409, `unlocked: false` y el mensaje indicado.
 - Registro nuevo: HTTP 201, `unlocked: true` y `Registro de usuario completado con éxito.`.
