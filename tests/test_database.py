@@ -502,6 +502,11 @@ class DatabaseTests(unittest.TestCase):
         self.assertTrue(self.db.delete_faculty("Facultad de Artes y Diseño"))
         self.assertNotIn("Facultad de Artes y Diseño", self.db.list_faculties())
 
+    def test_statistics_catalog_includes_faculties_without_registered_users(self):
+        self.db.add_faculty("Facultad de Arquitectura")
+        catalog = self.db.get_access_report_catalog()
+        self.assertIn("Facultad de Arquitectura", catalog["faculties"])
+
     def test_statistics_include_teachers_and_administrators_by_faculty(self):
         self.db.record_access_log(
             nombres="Docente", apellidos="Ejemplo",
