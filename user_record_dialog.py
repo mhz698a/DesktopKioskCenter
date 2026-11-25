@@ -16,38 +16,21 @@ from PyQt6.QtWidgets import (
 )
 
 from css.cQDialogs import cQMsgBox, cQDlg
-from user_catalogs import FACULTY_DEFAULTS, INTERNAL_STAFF_TYPES
+from user_catalogs import (
+    EXTERNAL_USER_TYPE_DEFAULTS,
+    FACULTY_DEFAULTS,
+    INTERNAL_STAFF_TYPES,
+    UNIVERSITY_DEFAULTS,
+)
 
-UNIVERSIDADES_QUERETARO = [
-    "Instituto Tecnológico de Querétaro (ITQ)",
-    "Universidad Tecnológica de Querétaro (UTEQ)",
-    "Universidad Politécnica de Querétaro (UPQ)",
-    "Universidad Aeronáutica en Querétaro (UNAQ)",
-    "Universidad Nacional Autónoma de México (UNAM - Campus Juriquilla)",
-    "Universidad Tecnológica de San Juan del Río (UTSJR)",
-    "Universidad Politécnica de Santa Rosa Jáuregui (UPSRJ)",
-    "Escuela Normal Superior de Querétaro – ENSQ",
-    "Tecnológico de Monterrey (Campus Querétaro)",
-    "Universidad Anáhuac (Sede Querétaro)",
-    "Universidad Tecnológica de México (UNITEC)",
-    "Universidad Marista de Querétaro",
-    "Universidad Cuauhtémoc (Plantel Querétaro)",
-    "Arkansas State University (Campus Querétaro)",
-    "Universidad de Estudios Avanzados (UNEA)",
-    "Universidad Tecmilenio",
-    "Otra institución externa",
-]
-
-TIPOS_USUARIO = [
-    "Estudiante Externo",
-    "Trabajador Interno",
-    "Público en general",
-]
+UNIVERSIDADES_QUERETARO = list(UNIVERSITY_DEFAULTS)
+TIPOS_USUARIO = [name for name, _required in EXTERNAL_USER_TYPE_DEFAULTS]
 
 
 class UserRecordDialog(cQDlg):
     def __init__(
-        self, title, fields, parent=None, *, faculties=None, user_type_options=None
+        self, title, fields, parent=None, *, faculties=None, user_type_options=None,
+        universities=None, university_required_types=None
     ):
         super().__init__(parent)
         self.setWindowTitle(title)
@@ -55,6 +38,14 @@ class UserRecordDialog(cQDlg):
         self.fields = fields
         self.faculties = list(faculties or FACULTY_DEFAULTS)
         self.user_type_options = list(user_type_options or TIPOS_USUARIO)
+        self.universities = list(universities or UNIVERSIDADES_QUERETARO)
+        if university_required_types is None:
+            university_required_types = {
+                name for name, required in EXTERNAL_USER_TYPE_DEFAULTS if required
+            }
+        self.university_required_types = {
+            str(name).strip().casefold() for name in university_required_types
+        }
         self.inputs = {}
 
         form = QFormLayout()
@@ -97,7 +88,7 @@ class UserRecordDialog(cQDlg):
 
         if key == "universidad":
             combo = QComboBox(self)
-            combo.addItems(UNIVERSIDADES_QUERETARO)
+            combo.addItems(self.universities)
             combo.setCurrentIndex(-1)
             combo.setEnabled(False)
             return combo
@@ -149,10 +140,9 @@ class UserRecordDialog(cQDlg):
         if university is None:
             return
 
-        is_external_student = user_type == "Estudiante Externo"
-        university.setEnabled(is_external_student)
-        if not is_external_student:
-            # Para trabajador interno o público general no se conserva universidad.
+        requires_university = str(user_type or "").strip().casefold() in self.university_required_types
+        university.setEnabled(requires_university)
+        if not requires_university:
             university.setCurrentIndex(-1)
 
     def _value(self, widget):
@@ -165,7 +155,7 @@ class UserRecordDialog(cQDlg):
             key: self._value(widget)
             for key, widget in self.inputs.items()
         }
-        if record.get("tipo_usuario") != "Estudiante Externo":
+        if str(record.get("tipo_usuario", "")).strip().casefold() not in self.university_required_types:
             record["universidad"] = ""
         return record
 
@@ -192,7 +182,10 @@ class UserRecordDialog(cQDlg):
                     return
                 continue
 
-            if key == "universidad" and user_type != "Estudiante Externo":
+            if (
+                key == "universidad"
+                and user_type.strip().casefold() not in self.university_required_types
+            ):
                 continue
 
             if not value:
