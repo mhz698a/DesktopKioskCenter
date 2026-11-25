@@ -368,7 +368,7 @@ class EquipmentBackend(QObject):
 
         answer = cQMsgBox.question(
             self.view,
-            "Enviar IP a todas las PCs",
+            "Enviar IP del servidor central a todas las PCs",
             f"Se enviará la IP de este servidor central ({server_ip}) a las "
             f"{len(self.kiosks)} PCs/kioscos configurados. Cada equipo guardará esta dirección "
             "para comunicarse con DesktopKioskCenter y reportar su estado y accesos. "
